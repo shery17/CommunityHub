@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -11,7 +12,7 @@ function Header() {
         <div className="flex items-center justify-between">
           
           {/* Logo + Title */}
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-xl font-bold text-white">
               C
             </div>
@@ -19,41 +20,37 @@ function Header() {
             <h1 className="text-xl font-bold text-gray-900">
               CommunityHub
             </h1>
-          </div>
+          </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden items-center gap-8 md:flex">
-            <a
-              href="#"
+            <Link
+              to="/"
               className="text-sm font-medium text-gray-700 transition hover:text-blue-600"
             >
               Home
-            </a>
+            </Link>
 
-            <a
-              href="#events"
+            <Link
+              to="/events"
               className="text-sm font-medium text-gray-700 transition hover:text-blue-600"
             >
               Events
-            </a>
+            </Link>
 
-            <a
-              href="#"
+            <Link
+              to="/create-event"
               className="text-sm font-medium text-gray-700 transition hover:text-blue-600"
             >
               Create Event
-            </a>
+            </Link>
 
-            <a
-              href="#"
-              className="text-sm font-medium text-gray-700 transition hover:text-blue-600"
+            <Link
+              to="/login"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
-              About
-            </a>
-
-            <button className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
               Login
-            </button>
+            </Link>
           </nav>
 
           {/* Mobile Menu Button */}
@@ -104,41 +101,37 @@ function Header() {
           <nav className="mt-4 border-t border-gray-200 pt-4 md:hidden">
             <div className="flex flex-col gap-2">
               
-              <a
-                href="#"
+              <Link
+                to="/"
                 className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Home
-              </a>
+              </Link>
 
-              <a
-                href="#events"
+              <Link
+                to="/events"
                 className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Events
-              </a>
+              </Link>
 
-              <a
-                href="#"
+              <Link
+                to="/create-event"
                 className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Create Event
-              </a>
+              </Link>
 
-              <a
-                href="#"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              <Link
+                to="/login"
+                className="mt-2 rounded-lg bg-blue-600 px-5 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-blue-700"
                 onClick={() => setIsMenuOpen(false)}
               >
-                About
-              </a>
-
-              <button className="mt-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
                 Login
-              </button>
+              </Link>
 
             </div>
           </nav>
@@ -149,3 +142,4 @@ function Header() {
 }
 
 export default Header;
+
