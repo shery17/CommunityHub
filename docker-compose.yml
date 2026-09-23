@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: communityhub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: communityhub
+      POSTGRES_USER: communityhub
+      POSTGRES_PASSWORD: communityhub_dev_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - communityhub_data:/var/lib/postgresql/data
+
+volumes:
+  communityhub_data:

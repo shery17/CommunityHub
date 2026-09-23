@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import pool from "./db.js";
 
 const app = express();
 
@@ -8,6 +9,22 @@ app.use(express.json()); // parses incoming json in req object -> server can acc
 
 app.get("/", (req, res) => {
   res.send("CommunityHub API is running!");
+});
+
+app.get("/api/test-db", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT NOW()");
+
+    res.json({
+      message: "Database connection works!",
+      time: result.rows[0].now,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Database connection failed",
+    });
+  }
 });
 
 const PORT = 5001;
