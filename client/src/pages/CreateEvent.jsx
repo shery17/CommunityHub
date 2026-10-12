@@ -33,10 +33,17 @@ function CreateEvent() {
     setError("");
 
     try {
+      const token = sessionStorage.getItem("token");
+
+      if (!token) {
+        throw new Error("Please log in before creating an event.");
+      }
+
       const response = await fetch("http://localhost:5001/api/events", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
