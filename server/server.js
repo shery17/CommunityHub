@@ -77,6 +77,46 @@ app.get("/api/events/:id", async (req, res) => {
   }
 });
 
+app.post("/api/events", async (req, res) => {
+  try {
+    const { title, description, date, time, location } = req.body;
+
+    // Validate required fields.
+    if (
+      !title?.trim() ||
+      !description?.trim() ||
+      !date ||
+      !time ||
+      !location?.trim()
+    ) {
+      return res.status(400).json({
+        message: "Please provide all required event details.",
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO events (title, description, date, time, location)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        title.trim(),
+        description.trim(),
+        date,
+        time,
+        location.trim(),
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error creating event:", error);
+
+    res.status(500).json({
+      message: "Failed to create event.",
+    });
+  }
+});
+
 const PORT = 5001;
 
 app.listen(PORT, () => {

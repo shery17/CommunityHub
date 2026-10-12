@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
 function CreateEvent() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -10,6 +13,9 @@ function CreateEvent() {
     time: "",
     location: "",
   });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -20,10 +26,37 @@ function CreateEvent() {
     }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    console.log(formData);
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:5001/api/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to create event.");
+      }
+
+      // Redirect to the new event's details page.
+      navigate(`/events/${data.id}`);
+    } catch (error) {
+      console.error("Error creating event:", error);
+      setError(
+        error.message || "Unable to create event. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -63,6 +96,7 @@ function CreateEvent() {
                   value={formData.title}
                   onChange={handleChange}
                   placeholder="e.g. Community Clean-Up"
+                  maxLength={200}
                   required
                   className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
@@ -105,6 +139,7 @@ function CreateEvent() {
                     type="date"
                     value={formData.date}
                     onChange={handleChange}
+                    min={new Date().toLocaleDateString("en-CA")}
                     required
                     className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                   />
@@ -146,19 +181,28 @@ function CreateEvent() {
                   value={formData.location}
                   onChange={handleChange}
                   placeholder="e.g. Leeds City Centre"
+                  maxLength={255}
                   required
                   className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <p className="mt-6 text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            )}
+
             {/* Submit */}
             <div className="mt-8 flex justify-end">
               <button
                 type="submit"
-                className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+                disabled={loading}
+                className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Create Event
+                {loading ? "Creating Event..." : "Create Event"}
               </button>
             </div>
           </form>
