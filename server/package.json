@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "create-tables": "node createTables.js",
-    "log-tables": "node logTables.js"
+    "log-tables": "node logTables.js",
+    "seed-events": "node seedEvents.js"
   },
   "keywords": [],
   "author": "",

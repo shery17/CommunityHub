@@ -1,64 +1,60 @@
+import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import EventCard from "../components/EventCard";
 import Footer from "../components/Footer";
 
 function Events() {
-  const events = [
-    {
-      id: 1,
-      title: "Community Clean-Up",
-      date: "Saturday, 10 May",
-      time: "10:00 AM",
-      location: "Leeds City Centre",
-      description:
-        "Join local residents for a community clean-up and help make our neighbourhood a better place.",
-    },
-    {
-      id: 2,
-      title: "Local Football Meetup",
-      date: "Sunday, 11 May",
-      time: "2:00 PM",
-      location: "Roundhay Park",
-      description:
-        "Come along for a friendly game of football. All abilities are welcome.",
-    },
-    {
-      id: 3,
-      title: "Community Food Market",
-      date: "Sunday, 11 May",
-      time: "11:00 AM",
-      location: "Leeds Kirkgate Market",
-      description:
-        "Discover local food, meet community members, and support local vendors.",
-    },
-    {
-      id: 4,
-      title: "Neighbourhood Gardening Day",
-      date: "Saturday, 17 May",
-      time: "9:30 AM",
-      location: "Hyde Park",
-      description:
-        "Help local residents plant flowers, maintain green spaces, and improve the neighbourhood.",
-    },
-    {
-      id: 5,
-      title: "Community Book Club",
-      date: "Wednesday, 21 May",
-      time: "6:30 PM",
-      location: "Leeds Central Library",
-      description:
-        "Meet other local readers and discuss this month's community book selection.",
-    },
-    {
-      id: 6,
-      title: "Charity Fun Run",
-      date: "Sunday, 25 May",
-      time: "10:00 AM",
-      location: "Roundhay Park",
-      description:
-        "Take part in a friendly community fun run while raising money for a local charity.",
-    },
-  ];
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchEvents() {
+      try {
+        const response = await fetch(
+          "http://localhost:5001/api/events"
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch events.");
+        }
+
+        const data = await response.json();
+        setEvents(data);
+      } catch (error) {
+        console.error("Error fetching events:", error);
+        setError("Unable to load events. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchEvents();
+  }, []);
+
+  function formatDate(dateString) {
+    const dateOnly = dateString.slice(0, 10);
+    const [year, month, day] = dateOnly.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+
+    return date.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+  }
+
+  function formatTime(timeString) {
+    const [hours, minutes] = timeString.split(":").map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+
+    return date.toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
 
   return (
     <>
@@ -82,19 +78,39 @@ function Events() {
 
         <section className="bg-white py-16">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {events.map((event) => (
-                <EventCard
+            {loading && (
+              <p className="text-center text-gray-600">
+                Loading events...
+              </p>
+            )}
+
+            {error && (
+              <p className="text-center text-red-600">
+                {error}
+              </p>
+            )}
+
+            {!loading && !error && events.length === 0 && (
+              <p className="text-center text-gray-600">
+                No events are available right now.
+              </p>
+            )}
+
+            {!loading && !error && events.length > 0 && (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {events.map((event) => (
+                  <EventCard
                     key={event.id}
                     id={event.id}
                     title={event.title}
-                    date={event.date}
-                    time={event.time}
+                    date={formatDate(event.date)}
+                    time={formatTime(event.time)}
                     location={event.location}
                     description={event.description}
-                />
-              ))}
-            </div>
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       </main>

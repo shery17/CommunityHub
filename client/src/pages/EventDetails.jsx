@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -5,57 +6,147 @@ import Footer from "../components/Footer";
 function EventDetails() {
   const { id } = useParams();
 
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function fetchEvent() {
+      setLoading(true);
+      setError("");
+      setEvent(null);
+
+      try {
+        const response = await fetch(
+          `http://localhost:5001/api/events/${id}`
+        );
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error("Event not found.");
+          }
+
+          throw new Error("Failed to load event.");
+        }
+
+        const data = await response.json();
+        setEvent(data);
+      } catch (error) {
+        console.error("Error fetching event:", error);
+        setError(error.message || "Unable to load this event.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchEvent();
+  }, [id]);
+
+  function formatDate(dateString) {
+    const [year, month, day] = dateString
+      .slice(0, 10)
+      .split("-")
+      .map(Number);
+
+    return new Date(year, month - 1, day).toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function formatTime(timeString) {
+    const [hours, minutes] = timeString.split(":").map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+
+    return date.toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
   return (
     <>
       <Header />
 
-      <main className="bg-gray-50 py-16">
+      <main className="min-h-screen bg-gray-50 py-12 sm:py-16">
         <div className="mx-auto max-w-4xl px-6">
           <Link
             to="/events"
-            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="inline-block text-sm font-semibold text-blue-600 hover:text-blue-800"
           >
             ← Back to Events
           </Link>
 
-          <article className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex h-64 items-center justify-center bg-blue-50">
-              <span className="text-6xl">📅</span>
-            </div>
+          {loading && (
+            <p className="mt-8 text-gray-600" role="status">
+              Loading event...
+            </p>
+          )}
 
-            <div className="p-8">
-              <p className="text-sm font-medium text-blue-600">
-                Community Event
+          {!loading && error && (
+            <div className="mt-8 rounded-xl border border-red-200 bg-white p-6">
+              <p className="text-red-600" role="alert">
+                {error}
               </p>
 
-              <h1 className="mt-2 text-4xl font-bold tracking-tight text-gray-900">
-                Community Event #{id}
-              </h1>
-
-              <div className="mt-6 space-y-3 text-gray-600">
-                <p>📅 Saturday, 10 May</p>
-                <p>🕐 10:00 AM</p>
-                <p>📍 Leeds City Centre</p>
-              </div>
-
-              <div className="mt-8 border-t border-gray-200 pt-8">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  About this event
-                </h2>
-
-                <p className="mt-4 leading-7 text-gray-600">
-                  Join local residents for a community event and get involved
-                  with people in your local area. This is where we will
-                  eventually display the full event description from our
-                  database.
-                </p>
-              </div>
-
-              <button className="mt-8 w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 sm:w-auto">
-                Register for Event
-              </button>
+              <Link
+                to="/events"
+                className="mt-4 inline-block font-semibold text-blue-600 hover:text-blue-800"
+              >
+                Browse all events
+              </Link>
             </div>
-          </article>
+          )}
+
+          {!loading && !error && event && (
+            <article className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="flex h-48 items-center justify-center bg-blue-50 sm:h-64">
+                <span className="text-6xl" aria-hidden="true">
+                  📅
+                </span>
+              </div>
+
+              <div className="p-6 sm:p-10">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                  {event.title}
+                </h1>
+
+                <div className="mt-6 space-y-4 text-gray-600">
+                  <p>
+                    <span className="mr-2" aria-hidden="true">📅</span>
+                    <strong className="text-gray-900">Date:</strong>{" "}
+                    {formatDate(event.date)}
+                  </p>
+
+                  <p>
+                    <span className="mr-2" aria-hidden="true">🕐</span>
+                    <strong className="text-gray-900">Time:</strong>{" "}
+                    {formatTime(event.time)}
+                  </p>
+
+                  <p>
+                    <span className="mr-2" aria-hidden="true">📍</span>
+                    <strong className="text-gray-900">Location:</strong>{" "}
+                    {event.location}
+                  </p>
+                </div>
+
+                <div className="mt-8 border-t border-gray-200 pt-6">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    About This Event
+                  </h2>
+
+                  <p className="mt-3 leading-7 text-gray-600">
+                    {event.description}
+                  </p>
+                </div>
+              </div>
+            </article>
+          )}
         </div>
       </main>
 
