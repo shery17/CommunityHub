@@ -2,13 +2,21 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { useAuth } from "../context/AuthContext";
 
 function EventDetails() {
   const { id } = useParams();
+  const { user } = useAuth();
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [registered, setRegistered] = useState(false);
+  const [checkingRegistration, setCheckingRegistration] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registrationMessage, setRegistrationMessage] = useState("");
+  const [registrationError, setRegistrationError] = useState("");
 
   useEffect(() => {
     async function fetchEvent() {
@@ -41,6 +49,115 @@ function EventDetails() {
 
     fetchEvent();
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkRegistration() {
+      const token = sessionStorage.getItem("token");
+
+      setRegistered(false);
+      setRegistrationMessage("");
+      setRegistrationError("");
+
+      if (!user || !token) {
+        setCheckingRegistration(false);
+        return;
+      }
+
+      setCheckingRegistration(true);
+
+      try {
+        const response = await fetch(
+          `http://localhost:5001/api/events/${id}/registration`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to check registration status."
+          );
+        }
+
+        if (!cancelled) {
+          setRegistered(data.registered);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error checking registration:", error);
+          setRegistrationError(
+            error.message || "Unable to check registration status."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setCheckingRegistration(false);
+        }
+      }
+    }
+
+    checkRegistration();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user]);
+
+  async function handleRegister() {
+    const token = sessionStorage.getItem("token");
+
+    if (!token) {
+      setRegistrationError("Please log in to register for this event.");
+      return;
+    }
+
+    setRegistering(true);
+    setRegistrationMessage("");
+    setRegistrationError("");
+
+    try {
+      const response = await fetch(
+        `http://localhost:5001/api/events/${id}/register`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      if (response.status === 409) {
+        setRegistered(true);
+        throw new Error("You are already registered for this event.");
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to register for this event.");
+      }
+
+      setRegistered(true);
+      setRegistrationMessage("You're registered! We look forward to seeing you.");
+    } catch (error) {
+      console.error("Error registering for event:", error);
+      setRegistrationError(
+        error.message || "Something went wrong. Please try again."
+      );
+    } finally {
+      setRegistering(false);
+    }
+  }
 
   function formatDate(dateString) {
     const [year, month, day] = dateString
@@ -143,6 +260,67 @@ function EventDetails() {
                   <p className="mt-3 leading-7 text-gray-600">
                     {event.description}
                   </p>
+                </div>
+
+                <div className="mt-8 border-t border-gray-200 pt-6">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Join This Event
+                  </h2>
+
+                  {!user ? (
+                    <div className="mt-4">
+                      <p className="text-gray-600">
+                        Log in to register and take part in this event.
+                      </p>
+
+                      <Link
+                        to="/login"
+                        className="mt-4 inline-block rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Log In to Register
+                      </Link>
+                    </div>
+                  ) : checkingRegistration ? (
+                    <p className="mt-4 text-gray-600" role="status">
+                      Checking your registration...
+                    </p>
+                  ) : registered ? (
+                    <p className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 font-medium text-green-800">
+                      ✓ You're registered for this event!
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRegister}
+                      disabled={registering}
+                      className="mt-4 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {registering ? "Registering..." : "Register for Event"}
+                    </button>
+                  )}
+
+                  {registrationMessage && (
+                    <p className="mt-4 text-sm text-green-700" role="status">
+                      {registrationMessage}
+                    </p>
+                  )}
+
+                  {registrationError && (
+                    <p className="mt-4 text-sm text-red-600" role="alert">
+                      {registrationError}
+                      {registrationError.includes("session has expired") && (
+                        <>
+                          {" "}
+                          <Link
+                            to="/login"
+                            className="font-semibold underline"
+                          >
+                            Log in again
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
               </div>
             </article>

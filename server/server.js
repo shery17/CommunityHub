@@ -275,6 +275,118 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+app.post("/api/events/:id/register", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+
+    if (!/^[1-9]\d*$/.test(eventId)) {
+      return res.status(400).json({
+        message: "Invalid event ID.",
+      });
+    }
+
+    const userId = req.user.userId;
+
+    const event = await pool.query(
+      "SELECT id FROM events WHERE id = $1",
+      [eventId]
+    );
+
+    if (event.rows.length === 0) {
+      return res.status(404).json({
+        message: "Event not found.",
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO event_attendees (user_id, event_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, event_id) DO NOTHING
+       RETURNING id`,
+      [userId, eventId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({
+        message: "You are already registered for this event.",
+      });
+    }
+
+    return res.status(201).json({
+      message: "Successfully registered for the event.",
+    });
+  } catch (error) {
+    console.error("Error registering for event:", error);
+
+    return res.status(500).json({
+      message: "Failed to register for the event.",
+    });
+  }
+});
+
+app.get("/api/users/me/events", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         e.id,
+         e.title,
+         e.description,
+         e.date,
+         e.time,
+         e.location,
+         ea.created_at AS registered_at
+       FROM event_attendees ea
+       JOIN events e ON e.id = ea.event_id
+       WHERE ea.user_id = $1
+       ORDER BY e.date ASC, e.time ASC`,
+      [req.user.userId]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching registered events:", error);
+
+    return res.status(500).json({
+      message: "Failed to load your registered events.",
+    });
+  }
+});
+
+app.delete("/api/events/:id/register", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+
+    if (!/^[1-9]\d*$/.test(eventId)) {
+      return res.status(400).json({
+        message: "Invalid event ID.",
+      });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM event_attendees
+       WHERE user_id = $1 AND event_id = $2
+       RETURNING id`,
+      [req.user.userId, eventId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "You are not registered for this event.",
+      });
+    }
+
+    return res.json({
+      message: "Registration cancelled successfully.",
+    });
+  } catch (error) {
+    console.error("Error cancelling registration:", error);
+
+    return res.status(500).json({
+      message: "Failed to cancel registration.",
+    });
+  }
+});
+
 const PORT = 5001;
 
 app.listen(PORT, () => {
