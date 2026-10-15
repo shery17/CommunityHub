@@ -80,11 +80,130 @@ app.get("/api/events/:id", async (req, res) => {
   }
 });
 
+app.put("/api/events/:id", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+
+    if (!/^[1-9]\d*$/.test(eventId)) {
+      return res.status(400).json({
+        message: "Invalid event ID.",
+      });
+    }
+
+    const { title, description, date, time, location } = req.body;
+
+    if (
+      typeof title !== "string" ||
+      !title.trim() ||
+      typeof description !== "string" ||
+      !description.trim() ||
+      !date ||
+      !time ||
+      typeof location !== "string" ||
+      !location.trim()
+    ) {
+      return res.status(400).json({
+        message: "Please provide all required event fields.",
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE events
+       SET title = $1,
+           description = $2,
+           date = $3,
+           time = $4,
+           location = $5
+       WHERE id = $6 AND created_by = $7
+       RETURNING *`,
+      [
+        title.trim(),
+        description.trim(),
+        date,
+        time,
+        location.trim(),
+        eventId,
+        req.user.userId,
+      ]
+    );
+
+    if (result.rowCount === 0) {
+      const event = await pool.query(
+        "SELECT id FROM events WHERE id = $1",
+        [eventId]
+      );
+
+      if (event.rowCount === 0) {
+        return res.status(404).json({
+          message: "Event not found.",
+        });
+      }
+
+      return res.status(403).json({
+        message: "You can only edit events you created.",
+      });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error updating event:", error);
+
+    return res.status(500).json({
+      message: "Failed to update event.",
+    });
+  }
+});
+
+app.delete("/api/events/:id", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+
+    if (!/^[1-9]\d*$/.test(eventId)) {
+      return res.status(400).json({
+        message: "Invalid event ID.",
+      });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM events
+       WHERE id = $1 AND created_by = $2
+       RETURNING id`,
+      [eventId, req.user.userId]
+    );
+
+    if (result.rowCount === 0) {
+      const event = await pool.query(
+        "SELECT id FROM events WHERE id = $1",
+        [eventId]
+      );
+
+      if (event.rowCount === 0) {
+        return res.status(404).json({
+          message: "Event not found.",
+        });
+      }
+
+      return res.status(403).json({
+        message: "You can only delete events you created.",
+      });
+    }
+
+    return res.json({
+      message: "Event deleted successfully.",
+    });
+  } catch (error) {
+    console.error("Error deleting event:", error);
+
+    return res.status(500).json({
+      message: "Failed to delete event.",
+    });
+  }
+});
+
 app.post("/api/events", requireAuth, async (req, res) => {
   try {
     const { title, description, date, time, location } = req.body;
 
-    // Validate required fields.
     if (
       !title?.trim() ||
       !description?.trim() ||
@@ -93,13 +212,14 @@ app.post("/api/events", requireAuth, async (req, res) => {
       !location?.trim()
     ) {
       return res.status(400).json({
-        message: "Please provide all required event details.",
+        message: "Please provide all required event fields.",
       });
     }
 
     const result = await pool.query(
-      `INSERT INTO events (title, description, date, time, location)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO events
+        (title, description, date, time, location, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         title.trim(),
@@ -107,14 +227,15 @@ app.post("/api/events", requireAuth, async (req, res) => {
         date,
         time,
         location.trim(),
+        req.user.userId,
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    return res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error("Error creating event:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Failed to create event.",
     });
   }

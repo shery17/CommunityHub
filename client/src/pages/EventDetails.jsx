@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 function EventDetails() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,7 +19,15 @@ function EventDetails() {
   const [registrationMessage, setRegistrationMessage] = useState("");
   const [registrationError, setRegistrationError] = useState("");
 
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const isOwner =
+    user && event && Number(event.created_by) === Number(user.id);
+
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchEvent() {
       setLoading(true);
       setError("");
@@ -29,25 +38,37 @@ function EventDetails() {
           `http://localhost:5001/api/events/${id}`
         );
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Event not found.");
-          }
+        const data = await response.json();
 
-          throw new Error("Failed to load event.");
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+              (response.status === 404
+                ? "Event not found."
+                : "Failed to load event.")
+          );
         }
 
-        const data = await response.json();
-        setEvent(data);
+        if (!cancelled) {
+          setEvent(data);
+        }
       } catch (error) {
-        console.error("Error fetching event:", error);
-        setError(error.message || "Unable to load this event.");
+        if (!cancelled) {
+          console.error("Error fetching event:", error);
+          setError(error.message || "Unable to load this event.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     fetchEvent();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
@@ -144,11 +165,15 @@ function EventDetails() {
       }
 
       if (!response.ok) {
-        throw new Error(data.message || "Unable to register for this event.");
+        throw new Error(
+          data.message || "Unable to register for this event."
+        );
       }
 
       setRegistered(true);
-      setRegistrationMessage("You're registered! We look forward to seeing you.");
+      setRegistrationMessage(
+        "You're registered! We look forward to seeing you."
+      );
     } catch (error) {
       console.error("Error registering for event:", error);
       setRegistrationError(
@@ -156,6 +181,54 @@ function EventDetails() {
       );
     } finally {
       setRegistering(false);
+    }
+  }
+
+  async function handleDeleteEvent() {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${event.title}"? This will also remove all registrations for this event.`
+    );
+
+    if (!confirmed) return;
+
+    const token = sessionStorage.getItem("token");
+
+    if (!token) {
+      setDeleteError("Your session has expired. Please log in again.");
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError("");
+
+    try {
+      const response = await fetch(
+        `http://localhost:5001/api/events/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to delete this event.");
+      }
+
+      navigate("/events", {
+        replace: true,
+        state: { message: "Event deleted successfully." },
+      });
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      setDeleteError(
+        error.message || "Something went wrong. Please try again."
+      );
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -261,6 +334,38 @@ function EventDetails() {
                     {event.description}
                   </p>
                 </div>
+
+                {isOwner && (
+                  <div className="mt-8 border-t border-gray-200 pt-6">
+                    <h2 className="text-xl font-bold text-gray-900">
+                      Manage Your Event
+                    </h2>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Link
+                        to={`/events/${event.id}/edit`}
+                        className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
+                      >
+                        Edit Event
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={handleDeleteEvent}
+                        disabled={deleting}
+                        className="rounded-lg border border-red-200 px-5 py-2.5 font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deleting ? "Deleting..." : "Delete Event"}
+                      </button>
+                    </div>
+
+                    {deleteError && (
+                      <p className="mt-4 text-sm text-red-600" role="alert">
+                        {deleteError}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-8 border-t border-gray-200 pt-6">
                   <h2 className="text-xl font-bold text-gray-900">
