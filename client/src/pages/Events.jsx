@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import EventCard from "../components/EventCard";
@@ -7,6 +8,8 @@ function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
 
   useEffect(() => {
     async function fetchEvents() {
@@ -31,6 +34,29 @@ function Events() {
 
     fetchEvents();
   }, []);
+
+  const filteredEvents = events.filter((event) => {
+    const search = searchTerm.trim().toLowerCase();
+
+    const matchesSearch =
+      event.title.toLowerCase().includes(search) ||
+      event.location.toLowerCase().includes(search);
+
+    const eventDate = String(event.date).slice(0, 10);
+
+    const matchesDate =
+      selectedDate === "" || eventDate === selectedDate;
+
+    return matchesSearch && matchesDate;
+  });
+
+  const hasActiveFilters =
+    searchTerm.trim() !== "" || selectedDate !== "";
+
+  function clearFilters() {
+    setSearchTerm("");
+    setSelectedDate("");
+  }
 
   function formatDate(dateString) {
     const dateOnly = dateString.slice(0, 10);
@@ -78,14 +104,82 @@ function Events() {
 
         <section className="bg-white py-16">
           <div className="mx-auto max-w-7xl px-6">
+            {!loading && !error && (
+              <div className="mb-10">
+                <div className="grid max-w-3xl gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="event-search"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Search Events
+                    </label>
+
+                    <input
+                      id="event-search"
+                      type="search"
+                      value={searchTerm}
+                      onChange={(event) =>
+                        setSearchTerm(event.target.value)
+                      }
+                      placeholder="Search by title or location..."
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="event-date"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Filter by Date
+                    </label>
+
+                    <input
+                      id="event-date"
+                      type="date"
+                      value={selectedDate}
+                      onChange={(event) =>
+                        setSelectedDate(event.target.value)
+                      }
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <p
+                    className="text-sm text-gray-500"
+                    role="status"
+                  >
+                    {filteredEvents.length}{" "}
+                    {filteredEvents.length === 1
+                      ? "event"
+                      : "events"}{" "}
+                    found
+                  </p>
+
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-800"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {loading && (
-              <p className="text-center text-gray-600">
+              <p className="text-center text-gray-600" role="status">
                 Loading events...
               </p>
             )}
 
             {error && (
-              <p className="text-center text-red-600">
+              <p className="text-center text-red-600" role="alert">
                 {error}
               </p>
             )}
@@ -96,9 +190,28 @@ function Events() {
               </p>
             )}
 
-            {!loading && !error && events.length > 0 && (
+            {!loading &&
+              !error &&
+              events.length > 0 &&
+              filteredEvents.length === 0 && (
+                <div className="py-10 text-center">
+                  <p className="text-gray-600">
+                    No events match your filters.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="mt-4 font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              )}
+
+            {!loading && !error && filteredEvents.length > 0 && (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {events.map((event) => (
+                {filteredEvents.map((event) => (
                   <EventCard
                     key={event.id}
                     id={event.id}
@@ -107,6 +220,7 @@ function Events() {
                     time={formatTime(event.time)}
                     location={event.location}
                     description={event.description}
+                    attendeeCount={event.attendee_count}
                   />
                 ))}
               </div>

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
@@ -9,8 +10,14 @@ function Profile() {
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
+  const [createdEvents, setCreatedEvents] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [createdLoading, setCreatedLoading] = useState(true);
+
   const [error, setError] = useState("");
+  const [createdError, setCreatedError] = useState("");
+
   const [cancellingEventId, setCancellingEventId] = useState(null);
   const [actionMessage, setActionMessage] = useState("");
 
@@ -60,6 +67,59 @@ function Profile() {
     }
 
     fetchRegisteredEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // NEW: Fetch events created by the logged-in user.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCreatedEvents() {
+      const token = sessionStorage.getItem("token");
+
+      if (!user || !token) {
+        setCreatedLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "http://localhost:5001/api/users/me/created-events",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to load your created events."
+          );
+        }
+
+        if (!cancelled) {
+          setCreatedEvents(data);
+          setCreatedError("");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching created events:", error);
+          setCreatedError(error.message || "Something went wrong.");
+        }
+      } finally {
+        if (!cancelled) {
+          setCreatedLoading(false);
+        }
+      }
+    }
+
+    fetchCreatedEvents();
 
     return () => {
       cancelled = true;
@@ -122,7 +182,7 @@ function Profile() {
   }
 
   function formatDate(dateString) {
-    const [year, month, day] = dateString
+    const [year, month, day] = String(dateString)
       .slice(0, 10)
       .split("-")
       .map(Number);
@@ -192,6 +252,7 @@ function Profile() {
             </p>
           </div>
 
+          {/* Account Details */}
           <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
             <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
               <div>
@@ -216,6 +277,7 @@ function Profile() {
             </div>
           </section>
 
+          {/* Registered Events */}
           <section className="mt-10">
             <div className="mb-5 flex items-center justify-between gap-4">
               <h2 className="text-2xl font-bold text-gray-900">
@@ -314,6 +376,93 @@ function Profile() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* NEW: Created Events */}
+          <section className="mt-12">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold text-gray-900">
+                My Created Events
+              </h2>
+
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
+                {createdEvents.length}{" "}
+                {createdEvents.length === 1 ? "event" : "events"}
+              </span>
+            </div>
+
+            {createdLoading && (
+              <p className="rounded-xl bg-white p-6 text-gray-600" role="status">
+                Loading your created events...
+              </p>
+            )}
+
+            {!createdLoading && createdError && (
+              <div className="rounded-xl border border-red-200 bg-white p-6">
+                <p className="text-red-600" role="alert">
+                  {createdError}
+                </p>
+              </div>
+            )}
+
+            {!createdLoading &&
+              !createdError &&
+              createdEvents.length === 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+                  <p className="text-gray-600">
+                    You haven't created any events yet.
+                  </p>
+
+                  <p className="mt-2 text-sm text-gray-500">
+                    Organise an event and bring your community together.
+                  </p>
+                </div>
+              )}
+
+            {!createdLoading &&
+              !createdError &&
+              createdEvents.length > 0 && (
+                <div className="grid gap-5 md:grid-cols-2">
+                  {createdEvents.map((event) => (
+                    <article
+                      key={event.id}
+                      className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+                    >
+                      <h3 className="text-xl font-bold text-gray-900">
+                        {event.title}
+                      </h3>
+
+                      <p className="mt-3 text-sm text-gray-600">
+                        <strong>Date:</strong> {formatDate(event.date)}
+                      </p>
+
+                      <p className="mt-2 text-sm text-gray-600">
+                        <strong>Time:</strong> {formatTime(event.time)}
+                      </p>
+
+                      <p className="mt-2 text-sm text-gray-600">
+                        <strong>Location:</strong> {event.location}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap items-center gap-4">
+                        <Link
+                          to={`/events/${event.id}`}
+                          className="font-semibold text-blue-600 hover:text-blue-800"
+                        >
+                          View Event →
+                        </Link>
+
+                        <Link
+                          to={`/events/${event.id}/edit`}
+                          className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+                        >
+                          Edit Event
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
           </section>
         </div>
       </main>

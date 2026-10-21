@@ -7,13 +7,44 @@ import requireAuth from "./middleware/requireAuth.js";
 
 const app = express();
 
-app.use(cors()); // allows frontend to talk with server
-app.use(express.json()); // parses incoming json in req object -> server can accept json data
+app.use(cors());
+app.use(express.json());
 
+// Validate that an event has a real, future date and time.
+function validateEventDateTime(date, time) {
+  if (
+    typeof date !== "string" ||
+    typeof time !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    !/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(time)
+  ) {
+    return "Please provide a valid event date and time.";
+  }
+
+  const eventDateTime = new Date(`${date}T${time}`);
+
+  if (
+    Number.isNaN(eventDateTime.getTime()) ||
+    eventDateTime.getFullYear() !== Number(date.slice(0, 4)) ||
+    eventDateTime.getMonth() + 1 !== Number(date.slice(5, 7)) ||
+    eventDateTime.getDate() !== Number(date.slice(8, 10))
+  ) {
+    return "Please provide a valid event date and time.";
+  }
+
+  if (eventDateTime.getTime() <= Date.now()) {
+    return "Events must be scheduled for a future date and time.";
+  }
+
+  return null;
+}
+
+// Basic API health check.
 app.get("/", (req, res) => {
   res.send("CommunityHub API is running!");
 });
 
+// Test the PostgreSQL connection.
 app.get("/api/test-db", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
@@ -24,6 +55,7 @@ app.get("/api/test-db", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       message: "Database connection failed",
     });
@@ -33,9 +65,15 @@ app.get("/api/test-db", async (req, res) => {
 app.get("/api/events", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT *
-      FROM events
-      ORDER BY date, time;
+      SELECT
+        e.*,
+        COUNT(ea.id)::integer AS attendee_count
+      FROM events e
+      LEFT JOIN event_attendees ea
+        ON ea.event_id = e.id
+      WHERE (e.date + e.time) >= LOCALTIMESTAMP
+      GROUP BY e.id
+      ORDER BY e.date ASC, e.time ASC;
     `);
 
     res.json(result.rows);
@@ -48,11 +86,11 @@ app.get("/api/events", async (req, res) => {
   }
 });
 
+// Get an individual event.
 app.get("/api/events/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check that the ID is a valid positive integer.
     if (!/^[1-9]\d*$/.test(id)) {
       return res.status(400).json({
         message: "Invalid event ID",
@@ -60,7 +98,14 @@ app.get("/api/events/:id", async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT * FROM events WHERE id = $1",
+      `SELECT
+        e.*,
+        COUNT(ea.id)::integer AS attendee_count
+      FROM events e
+      LEFT JOIN event_attendees ea
+        ON ea.event_id = e.id
+      WHERE e.id = $1
+      GROUP BY e.id`,
       [id]
     );
 
@@ -80,6 +125,7 @@ app.get("/api/events/:id", async (req, res) => {
   }
 });
 
+// Edit an event (owner only).
 app.put("/api/events/:id", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;
@@ -104,6 +150,15 @@ app.put("/api/events/:id", requireAuth, async (req, res) => {
     ) {
       return res.status(400).json({
         message: "Please provide all required event fields.",
+      });
+    }
+
+    // NEW: Prevent editing an event to a past date/time.
+    const dateTimeError = validateEventDateTime(date, time);
+
+    if (dateTimeError) {
+      return res.status(400).json({
+        message: dateTimeError,
       });
     }
 
@@ -154,6 +209,7 @@ app.put("/api/events/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Delete an event (owner only).
 app.delete("/api/events/:id", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;
@@ -200,6 +256,7 @@ app.delete("/api/events/:id", requireAuth, async (req, res) => {
   }
 });
 
+// Create an event (authenticated users only).
 app.post("/api/events", requireAuth, async (req, res) => {
   try {
     const { title, description, date, time, location } = req.body;
@@ -213,6 +270,15 @@ app.post("/api/events", requireAuth, async (req, res) => {
     ) {
       return res.status(400).json({
         message: "Please provide all required event fields.",
+      });
+    }
+
+    // NEW: Prevent creating events in the past.
+    const dateTimeError = validateEventDateTime(date, time);
+
+    if (dateTimeError) {
+      return res.status(400).json({
+        message: dateTimeError,
       });
     }
 
@@ -241,11 +307,11 @@ app.post("/api/events", requireAuth, async (req, res) => {
   }
 });
 
+// Register a new user.
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check required fields.
     if (
       typeof name !== "string" ||
       typeof email !== "string" ||
@@ -274,7 +340,6 @@ app.post("/api/auth/register", async (req, res) => {
       });
     }
 
-    // Check whether the email is already registered.
     const existingUser = await pool.query(
       "SELECT id FROM users WHERE email = $1",
       [cleanEmail]
@@ -286,7 +351,6 @@ app.post("/api/auth/register", async (req, res) => {
       });
     }
 
-    // Hash the password before storing it.
     const passwordHash = await bcrypt.hash(password, 12);
 
     const result = await pool.query(
@@ -301,7 +365,6 @@ app.post("/api/auth/register", async (req, res) => {
       user: result.rows[0],
     });
   } catch (error) {
-    // Handle a duplicate email if two requests arrive together.
     if (error.code === "23505") {
       return res.status(409).json({
         message: "An account with this email already exists.",
@@ -316,6 +379,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
+// Log in an existing user.
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -350,7 +414,6 @@ app.post("/api/auth/login", async (req, res) => {
 
     const user = result.rows[0];
 
-    // Use the same message for unknown emails and incorrect passwords.
     if (!user) {
       return res.status(401).json({
         message: "Invalid email or password.",
@@ -396,6 +459,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+// Register for an event.
 app.post("/api/events/:id/register", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;
@@ -445,6 +509,7 @@ app.post("/api/events/:id/register", requireAuth, async (req, res) => {
   }
 });
 
+// Get events the logged-in user has registered for.
 app.get("/api/users/me/events", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -473,6 +538,7 @@ app.get("/api/users/me/events", requireAuth, async (req, res) => {
   }
 });
 
+// Cancel an event registration.
 app.delete("/api/events/:id/register", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;
@@ -504,6 +570,33 @@ app.delete("/api/events/:id/register", requireAuth, async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to cancel registration.",
+    });
+  }
+});
+
+app.get("/api/users/me/created-events", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         id,
+         title,
+         description,
+         date,
+         time,
+         location,
+         created_at
+       FROM events
+       WHERE created_by = $1
+       ORDER BY date DESC, time DESC`,
+      [req.user.userId]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching created events:", error);
+
+    return res.status(500).json({
+      message: "Failed to load your created events.",
     });
   }
 });

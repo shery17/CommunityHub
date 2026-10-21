@@ -171,6 +171,14 @@ function EventDetails() {
       }
 
       setRegistered(true);
+      setEvent((previousEvent) =>
+        previousEvent
+          ? {
+              ...previousEvent,
+              attendee_count: Number(previousEvent.attendee_count ?? 0) + 1,
+            }
+          : previousEvent
+      );
       setRegistrationMessage(
         "You're registered! We look forward to seeing you."
       );
@@ -322,6 +330,15 @@ function EventDetails() {
                     <span className="mr-2" aria-hidden="true">📍</span>
                     <strong className="text-gray-900">Location:</strong>{" "}
                     {event.location}
+                  </p>
+
+                  <p>
+                    <span className="mr-2" aria-hidden="true">👥</span>
+                    <strong className="text-gray-900">Attendees:</strong>{" "}
+                    {Number(event.attendee_count ?? 0)}{" "}
+                    {Number(event.attendee_count ?? 0) === 1
+                      ? "person attending"
+                      : "people attending"}
                   </p>
                 </div>
 
