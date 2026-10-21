@@ -459,11 +459,11 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// Register for an event.
 app.post("/api/events/:id/register", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;
 
+    // Validate the event ID.
     if (!/^[1-9]\d*$/.test(eventId)) {
       return res.status(400).json({
         message: "Invalid event ID.",
@@ -472,26 +472,66 @@ app.post("/api/events/:id/register", requireAuth, async (req, res) => {
 
     const userId = req.user.userId;
 
-    const event = await pool.query(
-      "SELECT id FROM events WHERE id = $1",
+    // Check whether the event exists and registration is still open.
+    const eventResult = await pool.query(
+      `SELECT
+         id,
+         (date + time) > LOCALTIMESTAMP AS registration_open
+       FROM events
+       WHERE id = $1`,
       [eventId]
     );
 
-    if (event.rows.length === 0) {
+    // Event does not exist.
+    if (eventResult.rows.length === 0) {
       return res.status(404).json({
         message: "Event not found.",
       });
     }
 
+    // Event has already started.
+    if (!eventResult.rows[0].registration_open) {
+      return res.status(403).json({
+        message:
+          "Registration is closed because this event has already started.",
+      });
+    }
+
+    // Register the user, provided the event has not started.
+    // The time is checked again in the INSERT statement.
     const result = await pool.query(
       `INSERT INTO event_attendees (user_id, event_id)
-       VALUES ($1, $2)
+       SELECT $1, id
+       FROM events
+       WHERE id = $2
+         AND (date + time) > LOCALTIMESTAMP
        ON CONFLICT (user_id, event_id) DO NOTHING
        RETURNING id`,
       [userId, eventId]
     );
 
     if (result.rows.length === 0) {
+      // Check whether registration closed while the request was processed.
+      const statusResult = await pool.query(
+        `SELECT (date + time) > LOCALTIMESTAMP AS registration_open
+         FROM events
+         WHERE id = $1`,
+        [eventId]
+      );
+
+      if (statusResult.rows.length === 0) {
+        return res.status(404).json({
+          message: "Event not found.",
+        });
+      }
+
+      if (!statusResult.rows[0].registration_open) {
+        return res.status(403).json({
+          message:
+            "Registration is closed because this event has already started.",
+        });
+      }
+
       return res.status(409).json({
         message: "You are already registered for this event.",
       });

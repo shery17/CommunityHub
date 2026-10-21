@@ -21,9 +21,21 @@ function EventDetails() {
 
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const isOwner =
     user && event && Number(event.created_by) === Number(user.id);
+
+  const hasEventStarted = event
+    ? new Date(`${String(event.date).slice(0, 10)}T${event.time}`).getTime() <=
+      currentTime
+    : false;
+
+  // Refresh the registration state while the page remains open.
+  useEffect(() => {
+    const intervalId = setInterval(() => setCurrentTime(Date.now()), 15000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -389,7 +401,24 @@ function EventDetails() {
                     Join This Event
                   </h2>
 
-                  {!user ? (
+                  {checkingRegistration ? (
+                    <p className="mt-4 text-gray-600" role="status">
+                      Checking your registration...
+                    </p>
+                  ) : registered ? (
+                    <p className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 font-medium text-green-800">
+                      ✓ You're registered for this event!
+                    </p>
+                  ) : hasEventStarted ? (
+                    <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5" role="status">
+                      <p className="font-semibold text-gray-900">
+                        🔒 Registration Closed
+                      </p>
+                      <p className="mt-2 text-sm text-gray-600">
+                        This event has already started. New registrations are no longer accepted.
+                      </p>
+                    </div>
+                  ) : !user ? (
                     <div className="mt-4">
                       <p className="text-gray-600">
                         Log in to register and take part in this event.
@@ -402,14 +431,6 @@ function EventDetails() {
                         Log In to Register
                       </Link>
                     </div>
-                  ) : checkingRegistration ? (
-                    <p className="mt-4 text-gray-600" role="status">
-                      Checking your registration...
-                    </p>
-                  ) : registered ? (
-                    <p className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 font-medium text-green-800">
-                      ✓ You're registered for this event!
-                    </p>
                   ) : (
                     <button
                       type="button"
