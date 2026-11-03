@@ -15,7 +15,7 @@ function Events() {
   const [error, setError] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
   const queryString = searchParams.toString();
-  const { q: searchTerm, location, date: selectedDate, status, category, pricing, page_size: pageSize } = readEventListParams(searchParams);
+  const { q: searchTerm, location, date: selectedDate, status, category, pricing, availability, page_size: pageSize } = readEventListParams(searchParams);
   const [requestQuery, setRequestQuery] = useState(queryString);
   const [loadedQuery, setLoadedQuery] = useState(null);
   const [pagination, setPagination] = useState(null);
@@ -188,6 +188,14 @@ function Events() {
                       {categories.map(value => <option key={value} value={value}>{value}</option>)}
                     </select>
                   </div>}
+                  <div>
+                    <label htmlFor="event-availability" className="mb-2 block text-sm font-semibold text-gray-700">Availability</label>
+                    <select id="event-availability" value={availability} onChange={event => changeFilters({ availability: event.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500">
+                      <option value="all">Any availability</option>
+                      <option value="joinable">Open with space</option>
+                    </select>
+                  </div>
                   {pricingEnabled && <div>
                     <label htmlFor="event-pricing" className="mb-2 block text-sm font-semibold text-gray-700">Pricing</label>
                     <select id="event-pricing" value={pricing} onChange={event => changeFilters({ pricing: event.target.value })}

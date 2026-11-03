@@ -1,4 +1,4 @@
-const defaults = { q: "", location: "", date: "", category: "", pricing: "all", status: "upcoming", page: "1", page_size: "12" };
+const defaults = { q: "", location: "", date: "", category: "", pricing: "all", availability: "all", status: "upcoming", page: "1", page_size: "12" };
 
 export function readEventListParams(params) {
   // Keep malformed URL values intact so the API can return a useful error.

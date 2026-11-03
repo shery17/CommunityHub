@@ -48,7 +48,7 @@ export function eventAvailability(event, now = Date.now()) {
   const lifecycle = stages[Math.max(stages.indexOf(localLifecycle), stages.indexOf(event.lifecycle))];
   const closesAt = Math.min(Date.parse(event.starts_at), Date.parse(event.registration_closes_at ?? event.registration_deadline ?? event.starts_at));
   return { lifecycle,
-    registrationOpen: lifecycle === "upcoming" && event.registration_open !== false && now < closesAt,
-    cancellationOpen: lifecycle !== "past" && event.cancellation_open !== false && now < Date.parse(event.ends_at) };
+    registrationOpen: !event.cancelled_at && lifecycle === "upcoming" && event.registration_open !== false && now < closesAt,
+    cancellationOpen: !event.cancelled_at && lifecycle !== "past" && event.cancellation_open !== false && now < Date.parse(event.ends_at) };
 }
 

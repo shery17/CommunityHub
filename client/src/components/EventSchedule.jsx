@@ -5,6 +5,7 @@ export default function EventSchedule({ event, now, showDeadline = true }) {
   const schedule = eventSchedule(event);
   const availability = eventAvailability(event, now);
   const count = Number(event.attendee_count ?? 0);
+  const full = event.capacity != null && count >= event.capacity;
   return (
     <div className="mt-4 space-y-2 text-sm text-gray-600">
       {event.category && <p><strong>Category:</strong> {event.category}</p>}
@@ -25,13 +26,13 @@ export default function EventSchedule({ event, now, showDeadline = true }) {
       {event.distance_miles != null && <p><strong>Distance:</strong> {Number(event.distance_miles).toFixed(1)} miles (straight line)</p>}
       {[event.address, event.city, event.postcode, event.country].filter(Boolean).length > 0 &&
         <p><strong>Address:</strong> {[event.address, event.city, event.postcode, event.country].filter(Boolean).join(", ")}</p>}
-      <p><strong>Attendees:</strong> {count} {count === 1 ? "person attending" : "people attending"}</p>
+      <p><strong>Attendees:</strong> {event.capacity == null ? `${count} ${count === 1 ? "person attending" : "people attending"}` : `${count} / ${event.capacity} spots filled`}</p>
       <div className="flex flex-wrap gap-2" aria-label="Event status">
-        {availability.lifecycle && <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-800">
+        {availability.lifecycle && !event.cancelled_at && <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-800">
           {{ upcoming: "Upcoming", ongoing: "Ongoing", past: "Past" }[availability.lifecycle]}
         </span>}
-        <span className={`rounded-full px-3 py-1 font-semibold ${availability.registrationOpen ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-700"}`}>
-          {availability.registrationOpen ? "Registration open" : "Registration closed"}
+        <span className={`rounded-full px-3 py-1 font-semibold ${availability.registrationOpen && !full ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-700"}`}>
+          {availability.registrationOpen ? "Registration open" : availability.registrationOpen && full ? "Event full" : "Registration closed"}
         </span>
       </div>
     </div>

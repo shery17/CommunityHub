@@ -20,6 +20,7 @@ function EditEvent() {
   const [categories, setCategories] = useState([]);
   const [pricing, setPricing] = useState(null);
   const [structuredLocation, setStructuredLocation] = useState(false);
+  const [capacityEnabled, setCapacityEnabled] = useState(false);
   const [coordinatesEnabled, setCoordinatesEnabled] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const multiDay = Boolean(existingEvent?.start_date);
@@ -65,6 +66,7 @@ function EditEvent() {
           setPricing(config.pricing ?? null);
           setStructuredLocation(Boolean(config.structured_location));
           setCoordinatesEnabled(Boolean(config.coordinates));
+          setCapacityEnabled(Boolean(config.capacity));
           setExistingEvent(data);
         }
       } catch (error) {
@@ -210,6 +212,13 @@ function EditEvent() {
 
                 <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={saving} />
                 <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={saving} />
+                {capacityEnabled && <div>
+                  <label htmlFor="capacity" className="block text-sm font-semibold">Attendee limit (optional)</label>
+                  <input id="capacity" name="capacity" type="number" min={1} max={2147483647} step={1}
+                    value={formData.capacity ?? ""} onChange={handleChange}
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3" />
+                  <p className="mt-1 text-sm text-gray-600">Leave blank for unlimited attendance.</p>
+                </div>}
                 <EventTimingFields form={formData} onChange={handleChange} multiDay={multiDay} locks={locks} disabled={saving} />
 
                 <div>

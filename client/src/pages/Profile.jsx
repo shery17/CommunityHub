@@ -344,7 +344,7 @@ function Profile() {
                         {cancellingEventId === event.id
                           ? "Cancelling..."
                           : "Cancel Registration"}
-                      </button> : <p className="text-sm text-gray-600">This event has ended. Your attendance is kept in your history.</p>}
+                      </button> : <p className="text-sm text-gray-600">{event.cancelled_at ? "This event was cancelled. Your sign-up is kept in your history." : "This event has ended. Your attendance is kept in your history."}</p>}
                     </div>
                   </article>
                 ))}

@@ -47,12 +47,12 @@ const locationToForm = event => ({ ...Object.fromEntries(["address", "city", "po
 
 export function eventToForm(event) {
   if (!event.start_date) {
-    return { ...emptyEventForm, ...pricingToForm(event), ...locationToForm(event), title: event.title ?? "", description: event.description ?? "",
+    return { ...emptyEventForm, ...pricingToForm(event), ...locationToForm(event), capacity: event.capacity ?? "", title: event.title ?? "", description: event.description ?? "",
       location: event.location ?? "", category: event.category ?? "", date: String(event.date ?? "").slice(0, 10), time: event.time ?? "" };
   }
   const deadline = event.registration_deadline
     ? Temporal.Instant.from(event.registration_deadline).toZonedDateTimeISO(event.timezone) : null;
-  return { ...emptyEventForm, ...pricingToForm(event), ...locationToForm(event), title: event.title ?? "", description: event.description ?? "",
+  return { ...emptyEventForm, ...pricingToForm(event), ...locationToForm(event), capacity: event.capacity ?? "", title: event.title ?? "", description: event.description ?? "",
     location: event.location ?? "", category: event.category ?? "", start_date: event.start_date, start_time: event.start_time,
     start_offset: event.start_offset, end_date: event.end_date, end_time: event.end_time,
     end_offset: event.end_offset, timezone: event.timezone,
@@ -91,7 +91,7 @@ export function buildEventPayload(form, multiDay, { creating = false, now = Date
   }
   if (creating && Date.parse(start.instant) <= now) throw new Error("Events must start in the future.");
   if (creating && deadline && Date.parse(deadline.instant) <= now) throw new Error("Registration deadline must be in the future.");
-  return { ...details, ...(Object.hasOwn(form,"latitude") ? {latitude:form.latitude,longitude:form.longitude,place_label:form.place_label} : {}), ...Object.fromEntries(["address", "city", "postcode", "country"].filter(field => Object.hasOwn(form, field)).map(field => [field, form[field].trim() || null])), ...pricingPayload(form), category: form.category || null, start_date: form.start_date, start_time: form.start_time, start_offset: start.offset,
+  return { ...details, ...(Object.hasOwn(form, "capacity") ? { capacity: form.capacity === "" ? null : Number(form.capacity) } : {}), ...(Object.hasOwn(form,"latitude") ? {latitude:form.latitude,longitude:form.longitude,place_label:form.place_label} : {}), ...Object.fromEntries(["address", "city", "postcode", "country"].filter(field => Object.hasOwn(form, field)).map(field => [field, form[field].trim() || null])), ...pricingPayload(form), category: form.category || null, start_date: form.start_date, start_time: form.start_time, start_offset: start.offset,
     end_date: form.end_date, end_time: form.end_time, end_offset: end.offset,
     timezone: form.timezone, registration_deadline: deadline?.instant ?? null };
 }

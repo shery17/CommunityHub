@@ -7,7 +7,7 @@ test("shared links restore every filter and pagination value", () => {
     category: "Arts & Culture", status: "all", page: "2", page_size: "3" });
   assert.deepEqual(readEventListParams(new URLSearchParams(params.toString())), {
     q: "Food & music", location: "Leeds", date: "2028-05-11", category: "Arts & Culture",
-    pricing: "all", status: "all", page: "2", page_size: "3",
+    pricing: "all", availability: "all", status: "all", page: "2", page_size: "3",
   });
 });
 

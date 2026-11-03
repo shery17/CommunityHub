@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
+import EventAttendees from "../components/EventAttendees";
 import EventSchedule from "../components/EventSchedule";
 import { eventAvailability } from "../eventDisplay";
 import useEventClock from "../useEventClock";
@@ -25,6 +26,8 @@ function EventDetails() {
   const [cancelling, setCancelling] = useState(false);
 
   const [deleting, setDeleting] = useState(false);
+  const [cancellingEvent, setCancellingEvent] = useState(false);
+  const [cancelEventError, setCancelEventError] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const currentTime = useEventClock();
 
@@ -33,6 +36,7 @@ function EventDetails() {
 
   const displayEvent = event ? { ...event, ...(registrationState?.eventId === id ? registrationState : {}) } : null;
   const availability = eventAvailability(displayEvent, currentTime);
+  const full = displayEvent?.capacity != null && displayEvent.attendee_count >= displayEvent.capacity;
 
   useEffect(() => {
     let cancelled = false;
@@ -175,26 +179,21 @@ function EventDetails() {
       }
 
       if (response.status === 409) {
-        setRegistered(true);
-        throw new Error("You are already registered for this event.");
+        setRegistered(data.registered === true);
+        setRegistrationState({ ...data, eventId: id });
+        throw new Error(data.message || "Unable to register for this event.");
       }
 
       if (!response.ok) {
-        if (response.status === 403) setRegistrationState(previous => ({ ...previous, eventId: id, registration_open: false }));
+        if (data.code === "EVENT_CANCELLED") setRegistrationState({ ...data, eventId: id });
+        else if (response.status === 403) setRegistrationState(previous => ({ ...previous, eventId: id, registration_open: false }));
         throw new Error(
           data.message || "Unable to register for this event."
         );
       }
 
       setRegistered(true);
-      setEvent((previousEvent) =>
-        previousEvent
-          ? {
-              ...previousEvent,
-              attendee_count: Number(previousEvent.attendee_count ?? 0) + 1,
-            }
-          : previousEvent
-      );
+      setRegistrationState({ ...data, eventId: id });
       setRegistrationMessage(
         "You're registered! We look forward to seeing you."
       );
@@ -225,15 +224,36 @@ function EventDetails() {
       const data = await response.json();
       if (response.status === 401) throw new Error("Your session has expired. Please log in again.");
       if (!response.ok) {
-        if (response.status === 403) setRegistrationState(previous => ({ ...previous, eventId: id, cancellation_open: false }));
+        if (data.code === "EVENT_CANCELLED") setRegistrationState({ ...data, eventId: id });
+        else if (response.status === 403) setRegistrationState(previous => ({ ...previous, eventId: id, cancellation_open: false }));
         throw new Error(data.message || "Unable to cancel registration.");
       }
       setRegistered(false);
-      setEvent(previous => previous ? { ...previous, attendee_count: Math.max(0, Number(previous.attendee_count ?? 0) - 1) } : previous);
+      setRegistrationState({ ...data, eventId: id });
       setRegistrationMessage("Your registration has been cancelled.");
     } catch (error) {
       setRegistrationError(error.message || "Unable to cancel registration.");
     } finally { setCancelling(false); }
+  }
+
+  async function handleCancelEvent() {
+    if (!window.confirm("Cancel this event? Registration will close and existing sign-ups will be kept.")) return;
+    setCancellingEvent(true);
+    setCancelEventError("");
+    try {
+      const response = await fetch(`http://localhost:5001/api/events/${id}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to cancel event.");
+      setEvent(previous => ({ ...previous, ...data }));
+      setRegistrationState(previous => ({ ...previous, ...data, eventId: id }));
+    } catch (error) {
+      setCancelEventError(error.message);
+    } finally {
+      setCancellingEvent(false);
+    }
   }
 
   async function handleDeleteEvent() {
@@ -357,16 +377,24 @@ function EventDetails() {
                         Edit Event
                       </Link>
 
+                      {Object.hasOwn(event, "cancelled_at") && !displayEvent.cancelled_at && <button
+                        type="button" onClick={handleCancelEvent} disabled={cancellingEvent || deleting}
+                        className="rounded-lg border border-red-200 px-5 py-2.5 font-semibold text-red-600 disabled:opacity-60">
+                        {cancellingEvent ? "Cancelling event..." : "Cancel Event"}
+                      </button>}
                       <button
                         type="button"
                         onClick={handleDeleteEvent}
-                        disabled={deleting}
+                        disabled={deleting || cancellingEvent}
                         className="rounded-lg border border-red-200 px-5 py-2.5 font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {deleting ? "Deleting..." : "Delete Event"}
                       </button>
                     </div>
 
+                    {String(event.id) === id && <EventAttendees key={`${id}:${user.id}`} eventId={id} />}
+
+                    {cancelEventError && <p role="alert" className="mt-4 text-sm text-red-600">{cancelEventError}</p>}
                     {deleteError && (
                       <p className="mt-4 text-sm text-red-600" role="alert">
                         {deleteError}
@@ -380,7 +408,9 @@ function EventDetails() {
                     Join This Event
                   </h2>
 
-                  {checkingRegistration ? (
+                  {displayEvent.cancelled_at ? (
+                    <p className="mt-4 text-gray-700" role="status">This event has been cancelled.{registered && " Your sign-up is kept in your history."}</p>
+                  ) : checkingRegistration ? (
                     <p className="mt-4 text-gray-600" role="status">
                       Checking your registration...
                     </p>
@@ -403,6 +433,8 @@ function EventDetails() {
                         The registration deadline or event start has been reached. New registrations are no longer accepted.
                       </p>
                     </div>
+                  ) : full ? (
+                    <p className="mt-4 font-semibold text-gray-900" role="status">This event is full.</p>
                   ) : !user ? (
                     <div className="mt-4">
                       <p className="text-gray-600">

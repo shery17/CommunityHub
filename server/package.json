@@ -12,7 +12,9 @@
     "start": "node server.js",
     "create-tables": "node createTables.js",
     "log-tables": "node logTables.js",
-    "seed-events": "node seedEvents.js"
+    "seed-events": "node seedEvents.js",
+    "add-event-capacity": "node addEventCapacity.js",
+    "add-event-cancellation": "node addEventCancellation.js"
   },
   "keywords": [],
   "author": "",

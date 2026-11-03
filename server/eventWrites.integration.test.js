@@ -88,7 +88,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
     await t.test("creation requires auth and validates text, timing and zones", async () => {
       const config = await request("GET", "/config");
       assert.equal(config.status, 200);
-      assert.deepEqual(config.body, { multi_day: true, default_timezone: "Europe/London", categories: EVENT_CATEGORIES, pricing: PRICING_CONFIG, structured_location: true, coordinates: true });
+      assert.deepEqual(config.body, { multi_day: true, default_timezone: "Europe/London", categories: EVENT_CATEGORIES, pricing: PRICING_CONFIG, structured_location: true, coordinates: true, capacity: true });
       assert.equal((await request("POST", "", payload, null)).status, 401);
       for (const patch of [
         { title: 123 }, { title: "x".repeat(201) }, { location: "x".repeat(256) },
@@ -819,6 +819,90 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       assert.equal((await client.query("SELECT 1 FROM events WHERE latitude IS NOT NULL")).rowCount, 0);
     });
 
+    await t.test("capacity limits registration, preserves duplicates and releases withdrawals", async () => {
+      for (const capacity of [0, -1, 1.5, "1", 2147483648]) {
+        assert.equal((await request("POST", "", { ...payload, capacity })).status, 400);
+      }
+      const created = await request("POST", "", { ...payload, capacity: 1 });
+      assert.equal(created.status, 201);
+      const path = "/" + created.body.id;
+      const registration = path + "/register";
+      assert.equal((await request("POST", registration)).body.attendee_count, 1);
+      const full = await request("POST", registration, undefined, otherToken);
+      assert.equal(full.status, 409);
+      assert.equal(full.body.code, "EVENT_FULL");
+      assert.equal(full.body.registered, false);
+      assert.equal((await request("POST", registration)).body.code, "ALREADY_REGISTERED");
+      assert.equal((await request("DELETE", registration)).body.attendee_count, 0);
+      assert.equal((await request("POST", registration, undefined, otherToken)).status, 201);
+      assert.equal((await request("PUT", path, payload)).body.capacity, 1);
+      assert.equal((await request("PUT", path, { ...payload, capacity: 2 })).body.capacity, 2);
+      assert.equal((await request("POST", registration)).status, 201);
+      assert.equal((await request("PUT", path, { ...payload, capacity: 1 })).status, 409);
+      assert.equal((await request("PUT", path, { ...payload, capacity: null })).body.capacity, null);
+    });
+
+    await t.test("only organisers can cancel, and cancellation preserves sign-ups", async () => {
+      const created = await request("POST", "", payload);
+      assert.equal(created.status, 201);
+      const path = "/" + created.body.id;
+      assert.equal((await request("POST", path + "/register", undefined, otherToken)).status, 201);
+      assert.equal((await request("POST", path + "/cancel", undefined, otherToken)).status, 403);
+      const cancelled = await request("POST", path + "/cancel");
+      assert.equal(cancelled.status, 200);
+      assert.ok(cancelled.body.cancelled_at);
+      assert.equal((await request("POST", path + "/cancel")).body.cancelled_at, cancelled.body.cancelled_at);
+      assert.equal((await request("POST", path + "/register")).body.code, "EVENT_CANCELLED");
+      assert.equal((await request("DELETE", path + "/register", undefined, otherToken)).body.code, "EVENT_CANCELLED");
+      const detail = (await request("GET", path)).body;
+      assert.equal(detail.attendee_count, 1);
+      assert.equal(detail.registration_open, false);
+      assert.equal(detail.cancelled_at, cancelled.body.cancelled_at);
+      const status = (await request("GET", path + "/registration", undefined, otherToken)).body;
+      assert.equal(status.registered, true);
+      assert.equal(status.cancellation_open, false);
+    });
+
+    await t.test("joinable search excludes full, cancelled and closed events before pagination", async () => {
+      const fixture = { ...payload, title: "Joinable search fixture" };
+      const ids = [];
+      for (const capacity of [null, 2, 1, null, null]) {
+        const created = await request("POST", "", { ...fixture, capacity });
+        assert.equal(created.status, 201);
+        ids.push(created.body.id);
+      }
+      assert.equal((await request("POST", "/" + ids[1] + "/register")).status, 201);
+      assert.equal((await request("POST", "/" + ids[2] + "/register")).status, 201);
+      assert.equal((await request("POST", "/" + ids[3] + "/cancel")).status, 200);
+      await client.query("UPDATE events SET registration_deadline = statement_timestamp() - interval '1 minute' WHERE id = $1", [ids[4]]);
+      const query = "?q=Joinable+search+fixture&availability=joinable";
+      const result = await request("GET", query + "&page=2&page_size=1");
+      assert.equal(result.status, 200);
+      assert.equal(result.body.pagination.total, 2);
+      assert.deepEqual(result.body.events.map(event => event.id), [ids[1]]);
+      assert.deepEqual((await request("GET", query)).body.map(event => event.id), ids.slice(0, 2));
+      assert.equal((await request("GET", "?availability=unknown")).status, 400);
+      assert.equal((await request("GET", "?availability=joinable&availability=all")).status, 400);
+    });
+
+    await t.test("attendee lists are private and survive event cancellation", async () => {
+      const created = await request("POST", "", payload);
+      assert.equal(created.status, 201);
+      const path = "/" + created.body.id;
+      assert.deepEqual((await request("GET", path + "/attendees")).body, { attendees: [] });
+      assert.equal((await request("GET", path + "/attendees", undefined, null)).status, 401);
+      assert.equal((await request("POST", path + "/register", undefined, otherToken)).status, 201);
+      assert.equal((await request("GET", path + "/attendees", undefined, otherToken)).status, 403);
+      assert.equal((await request("POST", path + "/cancel")).status, 200);
+      const listed = await request("GET", path + "/attendees");
+      assert.equal(listed.status, 200);
+      assert.equal(listed.body.attendees.length, 1);
+      const [attendee] = listed.body.attendees;
+      assert.deepEqual(Object.keys(attendee).sort(), ["name", "registered_at", "registration_id"]);
+      assert.equal(attendee.name, "Other");
+      assert.ok(Number.isFinite(Date.parse(attendee.registered_at)));
+    });
+
     await t.test("legacy create and edit still work on the original schema", async () => {
       // This affects only the isolated test schema, never public tables.
       await client.query("DROP TABLE event_attendees; DROP TABLE events");
@@ -832,7 +916,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
         event_id INTEGER REFERENCES events(id), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (user_id, event_id))`);
       const legacy = { title: "Legacy", description: "Original form", date: `${futureYear}-05-10`, time: "10:00", location: "Leeds" };
-      assert.deepEqual((await request("GET", "/config")).body, { multi_day: false, default_timezone: "Europe/London", categories: [], pricing: null, structured_location: false, coordinates: false });
+      assert.deepEqual((await request("GET", "/config")).body, { multi_day: false, default_timezone: "Europe/London", categories: [], pricing: null, structured_location: false, coordinates: false, capacity: false });
       const created = await request("POST", "", legacy);
       assert.equal(created.status, 201);
       assert.equal((await request("PUT", `/${created.body.id}`, { ...legacy, title: "Legacy edited" })).status, 200);

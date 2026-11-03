@@ -20,6 +20,8 @@ CREATE TABLE events (
     title VARCHAR(200) NOT NULL,
     description TEXT NOT NULL,
     category VARCHAR(50),
+    cancelled_at TIMESTAMPTZ,
+    capacity INTEGER CHECK (capacity > 0),
     price NUMERIC(10,2),
     currency VARCHAR(3),
     start_date DATE NOT NULL,

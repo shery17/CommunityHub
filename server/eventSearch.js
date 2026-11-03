@@ -32,10 +32,11 @@ export function eventDayBounds(date, timezone) {
   };
 }
 
-export async function buildEventSearch(db, model, { status, category, pricing = "all", q, location, date, origin }) {
+export async function buildEventSearch(db, model, { status, category, pricing = "all", availability = "all", q, location, date, origin }) {
   const values = [];
   const bind = value => { values.push(value); return `$${values.length}`; };
   const clauses = [`(${model.filters[status]})`];
+  if (availability === "joinable") clauses.push(`(${model.registrationOpenAtRead}) AND ${model.hasSpace}`);
   if (category) clauses.push(`e.category = ${bind(category)}`);
   if (pricing === "free") clauses.push("e.price = 0");
   if (pricing === "paid") clauses.push("e.price > 0");

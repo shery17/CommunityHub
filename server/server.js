@@ -46,6 +46,15 @@ function validateEventFields(body) {
   return null;
 }
 
+function eventCapacity(body, existing = null) {
+  if (!Object.hasOwn(body, "capacity")) return existing;
+  if (body.capacity === null) return null;
+  if (!Number.isInteger(body.capacity) || body.capacity < 1 || body.capacity > 2147483647) {
+    throw new Error("Capacity must be a positive whole number or null.");
+  }
+  return body.capacity;
+}
+
 function eventWriteValues(body, timing) {
   return [body.title.trim(), body.description.trim(), body.start_date,
     body.start_time, timing.start_offset, body.end_date, body.end_time,
@@ -54,7 +63,8 @@ function eventWriteValues(body, timing) {
 
 function eventWriteResponse(event, timing, attendeeCount) {
   return { ...event, start_date: String(event.start_date), end_date: String(event.end_date),
-    ...timing, ...eventTimingStatus(timing), attendee_count: attendeeCount };
+    ...timing, ...eventTimingStatus(timing),
+    ...(event.cancelled_at ? { registration_open: false, cancellation_open: false } : {}), attendee_count: attendeeCount };
 }
 
 async function createMultiDayEvent(req, res) {
@@ -64,10 +74,13 @@ async function createMultiDayEvent(req, res) {
   let pricing;
   let locationDetails;
   let coordinates;
+  let capacity;
   const model = await getEventReadModel(pool);
   try {
     timing = validateNewEventTiming(req.body);
     pricing = eventPricing(req.body);
+    capacity = eventCapacity(req.body);
+    if (!model.hasCapacity && capacity !== null) throw new Error("Install the capacity schema update first.");
     locationDetails = eventLocation(req.body);
     coordinates = eventCoordinates(req.body);
     if (!model.hasCoordinates && coordinates.latitude !== null) throw new Error("Install the event coordinates schema update first.");
@@ -77,15 +90,16 @@ async function createMultiDayEvent(req, res) {
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }
+  const capacityParameter = 16 + (model.hasStructuredLocation ? 4 : 0) + (model.hasCoordinates ? 3 : 0);
   const result = await pool.query(
     `INSERT INTO events
       (title, description, start_date, start_time, start_offset,
-       end_date, end_time, end_offset, timezone, registration_deadline, location, created_by, category, price, currency${model.hasStructuredLocation ? ", address, city, postcode, country" : ""}${model.hasCoordinates ? ", latitude, longitude, place_label" : ""})
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15${model.hasStructuredLocation ? ", $16, $17, $18, $19" : ""}${model.hasCoordinates ? ", $20, $21, $22" : ""})
+       end_date, end_time, end_offset, timezone, registration_deadline, location, created_by, category, price, currency${model.hasStructuredLocation ? ", address, city, postcode, country" : ""}${model.hasCoordinates ? ", latitude, longitude, place_label" : ""}${model.hasCapacity ? ", capacity" : ""})
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15${model.hasStructuredLocation ? ", $16, $17, $18, $19" : ""}${model.hasCoordinates ? ", $20, $21, $22" : ""}${model.hasCapacity ? `, $${capacityParameter}` : ""})
      RETURNING *, to_char(start_date, 'YYYY-MM-DD') AS start_date,
        to_char(end_date, 'YYYY-MM-DD') AS end_date`,
     [...eventWriteValues(req.body, timing), req.user.userId, req.body.category ?? null, pricing.price, pricing.currency,
-      ...(model.hasStructuredLocation ? Object.values(locationDetails) : []), ...(model.hasCoordinates ? Object.values(coordinates) : [])]
+      ...(model.hasStructuredLocation ? Object.values(locationDetails) : []), ...(model.hasCoordinates ? Object.values(coordinates) : []), ...(model.hasCapacity ? [capacity] : [])]
   );
   return res.status(201).json(eventWriteResponse(result.rows[0], timing, 0));
 }
@@ -115,9 +129,13 @@ async function editMultiDayEvent(req, res) {
     let pricing;
     let locationDetails;
     let coordinates;
+    let capacity;
+    const hasCapacity = Object.hasOwn(existing, "capacity");
     try {
       if (fieldError) throw new Error(fieldError);
       pricing = eventPricing(req.body, existing);
+      capacity = eventCapacity(req.body, existing.capacity ?? null);
+      if (!hasCapacity && capacity !== null) throw new Error("Install the capacity schema update first.");
       locationDetails = eventLocation(req.body, existing);
       coordinates = eventCoordinates(req.body, existing);
       if (!hasCoordinates && coordinates.latitude !== null) throw new Error("Install the event coordinates schema update first.");
@@ -132,22 +150,27 @@ async function editMultiDayEvent(req, res) {
       await client.query("ROLLBACK");
       return res.status(400).json({ message: error.message });
     }
+    const count = await client.query(
+      "SELECT COUNT(*)::integer AS attendee_count FROM event_attendees WHERE event_id = $1",
+      [req.params.id]
+    );
+    if (capacity !== null && capacity < count.rows[0].attendee_count) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "Capacity cannot be lower than the current number of attendees." });
+    }
+    const capacityParameter = 17 + (hasStructuredLocation ? 4 : 0) + (hasCoordinates ? 3 : 0);
     const result = await client.query(
       `UPDATE events SET title = $1, description = $2,
          start_date = $3, start_time = $4, start_offset = $5,
          end_date = $6, end_time = $7, end_offset = $8,
          timezone = $9, registration_deadline = $10, location = $11, category = $14,
-         price = $15, currency = $16${hasStructuredLocation ? ", address = $17, city = $18, postcode = $19, country = $20" : ""}${hasCoordinates ? ", latitude = $21, longitude = $22, place_label = $23" : ""}
+         price = $15, currency = $16${hasStructuredLocation ? ", address = $17, city = $18, postcode = $19, country = $20" : ""}${hasCoordinates ? ", latitude = $21, longitude = $22, place_label = $23" : ""}${hasCapacity ? `, capacity = $${capacityParameter}` : ""}
        WHERE id = $12 AND created_by = $13
        RETURNING *, to_char(start_date, 'YYYY-MM-DD') AS start_date,
          to_char(end_date, 'YYYY-MM-DD') AS end_date`,
       [...eventWriteValues(req.body, timing), req.params.id, req.user.userId,
         Object.hasOwn(req.body, "category") ? req.body.category : existing.category ?? null, pricing.price, pricing.currency,
-        ...(hasStructuredLocation ? Object.values(locationDetails) : []), ...(hasCoordinates ? Object.values(coordinates) : [])]
-    );
-    const count = await client.query(
-      "SELECT COUNT(*)::integer AS attendee_count FROM event_attendees WHERE event_id = $1",
-      [req.params.id]
+        ...(hasStructuredLocation ? Object.values(locationDetails) : []), ...(hasCoordinates ? Object.values(coordinates) : []), ...(hasCapacity ? [capacity] : [])]
     );
     await client.query("COMMIT");
     return res.json(eventWriteResponse(result.rows[0], timing, count.rows[0].attendee_count));
@@ -161,7 +184,9 @@ async function editMultiDayEvent(req, res) {
 
 async function registrationState(db, model, eventId, userId) {
   const result = await db.query(
-    `SELECT ${model.attendanceFields}, EXISTS (
+    `SELECT ${model.attendanceFields}, ${model.hasCapacity ? "e.capacity" : "NULL::integer AS capacity"},
+     ${model.hasEventCancellation ? "e.cancelled_at" : "NULL::timestamptz AS cancelled_at"},
+     (SELECT COUNT(*)::integer FROM event_attendees WHERE event_id = e.id) AS attendee_count, EXISTS (
        SELECT 1 FROM event_attendees ea
        WHERE ea.event_id = e.id AND ea.user_id = $2
      ) AS registered FROM events e WHERE e.id = $1`, [eventId, userId]
@@ -183,6 +208,7 @@ async function changeRegistration(req, res, cancel = false) {
     };
     if (!locked.rowCount) return await finish(404, { message: "Event not found." });
     const state = await registrationState(client, model, req.params.id, req.user.userId);
+    if (state.cancelled_at) return await finish(403, { ...state, code: "EVENT_CANCELLED", message: "This event has been cancelled." });
     const closedMessage = model.multiDay
       ? "Registration is closed because its deadline or the event start has been reached."
       : "Registration is closed because this event has already started.";
@@ -192,6 +218,13 @@ async function changeRegistration(req, res, cancel = false) {
     }
     if (cancel ? !state.cancellation_open : !state.registration_open) {
       return await finish(403, { message: cancel ? cancellationMessage : closedMessage });
+    }
+
+    if (!cancel && state.registered) {
+      return await finish(409, { code: "ALREADY_REGISTERED", message: "You are already registered for this event.", ...state });
+    }
+    if (!cancel && state.capacity !== null && state.attendee_count >= state.capacity) {
+      return await finish(409, { code: "EVENT_FULL", message: "This event is full.", ...state });
     }
 
     const result = cancel
@@ -218,7 +251,7 @@ async function changeRegistration(req, res, cancel = false) {
     }
     return await finish(cancel ? 200 : 201, {
       message: cancel ? "Registration cancelled successfully." : "Successfully registered for the event.",
-      registered: !cancel,
+      ...(await registrationState(client, model, req.params.id, req.user.userId)),
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -309,7 +342,11 @@ app.get("/api/events", async (req, res) => {
       return res.status(400).json({ message: "Category filtering requires the category schema update." });
     }
     if (origin && !model.hasCoordinates) throw new EventSearchError("Distance search requires the event coordinates schema update.");
-    const search = await buildEventSearch(pool, model, { status, category, pricing, origin, ...textAndDate });
+    const availability = req.query.availability ?? "all";
+    if (availability !== "all" && availability !== "joinable") {
+      throw new EventSearchError("Availability must be all or joinable.");
+    }
+    const search = await buildEventSearch(pool, model, { status, category, pricing, availability, origin, ...textAndDate });
     if (pagination) return res.json(await paginatedEvents(pool, model, search, pagination));
     const result = await pool.query(`
       SELECT ${model.fields}${search.distance ? `, ${search.distance} AS distance_miles` : ""}
@@ -346,7 +383,7 @@ app.get("/api/events/config", async (req, res) => {
   try {
     const model = await getEventReadModel(pool);
     return res.json({ multi_day: model.multiDay, default_timezone: "Europe/London",
-      categories: model.hasCategory ? EVENT_CATEGORIES : [], pricing: model.hasPricing ? PRICING_CONFIG : null, structured_location: model.hasStructuredLocation, coordinates: model.hasCoordinates });
+      categories: model.hasCategory ? EVENT_CATEGORIES : [], pricing: model.hasPricing ? PRICING_CONFIG : null, structured_location: model.hasStructuredLocation, coordinates: model.hasCoordinates, capacity: model.hasCapacity });
   } catch (error) {
     console.error("Error loading event configuration:", error);
     return res.status(500).json({ message: "Unable to load the event form. Please try again." });
@@ -479,6 +516,33 @@ app.put("/api/events/:id", requireAuth, async (req, res) => {
 });
 
 // Delete an event (owner only).
+app.post("/api/events/:id/cancel", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  if (!/^[1-9]\d*$/.test(id) || Number(id) > 2147483647) {
+    return res.status(400).json({ message: "Invalid event ID." });
+  }
+  try {
+    const model = await getEventReadModel(pool);
+    if (!model.hasEventCancellation) return res.status(400).json({ message: "Event cancellation is unavailable." });
+    // UPDATE takes the same row lock used by registration and withdrawal.
+    const result = await pool.query(
+      `UPDATE events SET cancelled_at = COALESCE(cancelled_at, clock_timestamp())
+       WHERE id = $1 AND created_by = $2 RETURNING cancelled_at`,
+      [id, req.user.userId]
+    );
+    if (!result.rowCount) {
+      const found = await pool.query("SELECT 1 FROM events WHERE id = $1", [id]);
+      return found.rowCount
+        ? res.status(403).json({ message: "You can only cancel events you created." })
+        : res.status(404).json({ message: "Event not found." });
+    }
+    return res.json({ cancelled_at: result.rows[0].cancelled_at, registration_open: false, cancellation_open: false });
+  } catch (error) {
+    console.error("Error cancelling event:", error);
+    return res.status(500).json({ message: "Unable to cancel event." });
+  }
+});
+
 app.delete("/api/events/:id", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;
@@ -737,6 +801,34 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // Check the authenticated user's attendance, including for past events.
+app.get("/api/events/:id/attendees", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  if (!/^[1-9]\d*$/.test(id) || Number(id) > 2147483647) {
+    return res.status(400).json({ message: "Invalid event ID." });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT e.created_by, a.id AS registration_id, a.created_at AS registered_at, u.name
+       FROM events e
+       LEFT JOIN event_attendees a ON a.event_id = e.id AND e.created_by = $2
+       LEFT JOIN users u ON u.id = a.user_id
+       WHERE e.id = $1
+       ORDER BY a.created_at, a.id`,
+      [id, req.user.userId]
+    );
+    if (!result.rowCount) return res.status(404).json({ message: "Event not found." });
+    if (result.rows[0].created_by === null || Number(result.rows[0].created_by) !== Number(req.user.userId)) {
+      return res.status(403).json({ message: "Only the event organiser can view attendees." });
+    }
+    res.set("Cache-Control", "private, no-store");
+    return res.json({ attendees: result.rows.filter(row => row.registration_id !== null)
+      .map(({ registration_id, name, registered_at }) => ({ registration_id, name, registered_at })) });
+  } catch (error) {
+    console.error("Error loading attendees:", error);
+    return res.status(500).json({ message: "Unable to load attendees." });
+  }
+});
+
 app.get("/api/events/:id/registration", requireAuth, async (req, res) => {
   try {
     const eventId = req.params.id;

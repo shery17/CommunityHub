@@ -267,3 +267,28 @@ Verified with PostgreSQL integration tests, a live Photon lookup and browser
 checks of selection, radius changes, any distance, reload and Back navigation.
 The event form cleared its selected point on address change. Disposable browser
 fixtures were removed after verification.
+
+## Event capacity
+
+The optional attendee limit is a positive whole number. A blank field or null
+means unlimited attendance. Edits that omit capacity preserve the current limit.
+An organiser cannot lower the limit below the current attendee count.
+
+Registration, withdrawal and capacity edits share the event row lock.
+Registration returns HTTP 409 with EVENT_FULL when every spot is taken and
+ALREADY_REGISTERED for a duplicate while registration is open. The timing
+rules still govern when registrations and withdrawals are allowed. Successful
+mutations return the current attendee count and limit for the event page.
+
+Run npm run add-event-capacity from server to add the nullable column without
+resetting existing data. Existing events start with unlimited capacity.
+
+## Organiser event cancellation
+
+Organisers can cancel an event from its details page. Cancellation records a
+timestamp and preserves the event and its sign-ups. Discovery and profile
+entries display the cancelled status. Registration and withdrawal are closed.
+Repeat cancellation requests retain the original timestamp.
+
+Run npm run add-event-cancellation from server to add the cancellation timestamp
+to an existing multi-day schema without resetting data.
