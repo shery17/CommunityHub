@@ -1,85 +1,104 @@
+import EventRadiusFilter from "../components/EventRadiusFilter";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Header from "../components/Header";
 import EventCard from "../components/EventCard";
 import Footer from "../components/Footer";
+import { eventAvailability } from "../eventDisplay";
+import useEventClock from "../useEventClock";
+import { readEventListParams, changeEventListParams } from "../eventListParams";
 
 function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryString = searchParams.toString();
+  const { q: searchTerm, location, date: selectedDate, status, category, pricing, page_size: pageSize } = readEventListParams(searchParams);
+  const [requestQuery, setRequestQuery] = useState(queryString);
+  const [loadedQuery, setLoadedQuery] = useState(null);
+  const [pagination, setPagination] = useState(null);
+  const [multiDay, setMultiDay] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [pricingEnabled, setPricingEnabled] = useState(false);
+  const [coordinatesEnabled, setCoordinatesEnabled] = useState(false);
+  const now = useEventClock();
+  const isLoading = loading || requestQuery !== queryString || loadedQuery !== requestQuery;
 
   useEffect(() => {
-    async function fetchEvents() {
-      try {
-        const response = await fetch(
-          "http://localhost:5001/api/events"
-        );
+    if (requestQuery === queryString) return;
+    const previous = new URLSearchParams(requestQuery);
+    const next = new URLSearchParams(queryString);
+    const textChanged = previous.get("q") !== next.get("q") || previous.get("location") !== next.get("location");
+    const timer = setTimeout(() => setRequestQuery(queryString), textChanged ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [queryString, requestQuery]);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch events.");
-        }
+  useEffect(() => {
+    const controller = new AbortController();
+    async function fetchEvents() {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams(requestQuery);
+        if (!params.has("page")) params.set("page", "1");
+        if (!params.has("page_size")) params.set("page_size", "12");
+        const [response, configResponse] = await Promise.all([
+          fetch(`http://localhost:5001/api/events?${params}`, { signal: controller.signal }),
+          fetch("http://localhost:5001/api/events/config", { signal: controller.signal }),
+        ]);
 
         const data = await response.json();
-        setEvents(data);
+        const config = await configResponse.json();
+        if (!response.ok) throw new Error(data.message || "Failed to fetch events.");
+        if (!configResponse.ok) throw new Error("Unable to load event filters.");
+        if (!controller.signal.aborted) {
+          setEvents(data.events);
+          setPagination(data.pagination);
+          setMultiDay(config.multi_day);
+          setCategories(config.categories ?? []);
+          setPricingEnabled(Boolean(config.pricing));
+          setCoordinatesEnabled(Boolean(config.coordinates));
+        }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("Error fetching events:", error);
-        setError("Unable to load events. Please try again later.");
+        setError(error.message || "Unable to load events. Please try again later.");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          setLoadedQuery(requestQuery);
+        }
       }
     }
 
     fetchEvents();
-  }, []);
+    return () => controller.abort();
+  }, [requestQuery]);
 
-  const filteredEvents = events.filter((event) => {
-    const search = searchTerm.trim().toLowerCase();
-
-    const matchesSearch =
-      event.title.toLowerCase().includes(search) ||
-      event.location.toLowerCase().includes(search);
-
-    const eventDate = String(event.date).slice(0, 10);
-
-    const matchesDate =
-      selectedDate === "" || eventDate === selectedDate;
-
-    return matchesSearch && matchesDate;
+  const visibleEvents = events.filter((event) => {
+    const availability = eventAvailability(event, now);
+    const lifecycle = availability.lifecycle;
+    return lifecycle ? status === "all" || lifecycle === status : status !== "upcoming" || availability.registrationOpen;
   });
 
-  const hasActiveFilters =
-    searchTerm.trim() !== "" || selectedDate !== "";
+  const hasActiveFilters = queryString !== "";
+  const outOfRange = pagination && pagination.total > 0 && pagination.page > pagination.total_pages;
+  const sizeOptions = [...new Set([3, 12, 24, 48,
+    ...(/^[1-9]\d*$/.test(pageSize) && Number(pageSize) <= 100 ? [Number(pageSize)] : [])])].sort((a, b) => a - b);
+
+  function changeFilters(changes, replace = false) {
+    setSearchParams(current => changeEventListParams(current, changes), { replace });
+  }
+
+  function changePage(page) {
+    setSearchParams(current => changeEventListParams(current, { page }, { resetPage: false }));
+  }
 
   function clearFilters() {
-    setSearchTerm("");
-    setSelectedDate("");
-  }
-
-  function formatDate(dateString) {
-    const dateOnly = dateString.slice(0, 10);
-    const [year, month, day] = dateOnly.split("-").map(Number);
-    const date = new Date(year, month - 1, day);
-
-    return date.toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
-  }
-
-  function formatTime(timeString) {
-    const [hours, minutes] = timeString.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-
-    return date.toLocaleTimeString("en-GB", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    setSearchParams(new URLSearchParams());
+    setRequestQuery("");
   }
 
   return (
@@ -104,27 +123,34 @@ function Events() {
 
         <section className="bg-white py-16">
           <div className="mx-auto max-w-7xl px-6">
-            {!loading && !error && (
-              <div className="mb-10">
-                <div className="grid max-w-3xl gap-5 sm:grid-cols-2">
+            <div className="mb-10">
+                <div className="grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                   <div>
                     <label
                       htmlFor="event-search"
                       className="mb-2 block text-sm font-semibold text-gray-700"
                     >
-                      Search Events
+                      Keyword
                     </label>
 
                     <input
                       id="event-search"
                       type="search"
+                      maxLength={200}
                       value={searchTerm}
                       onChange={(event) =>
-                        setSearchTerm(event.target.value)
+                        changeFilters({ q: event.target.value }, true)
                       }
-                      placeholder="Search by title or location..."
+                      placeholder="Search title or description..."
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
+                  </div>
+
+                  <div>
+                    <label htmlFor="event-location" className="mb-2 block text-sm font-semibold text-gray-700">Location or city</label>
+                    <input id="event-location" type="search" value={location} maxLength={255}
+                      onChange={event => changeFilters({ location: event.target.value }, true)} placeholder="e.g. Leeds"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
                   </div>
 
                   <div>
@@ -132,7 +158,7 @@ function Events() {
                       htmlFor="event-date"
                       className="mb-2 block text-sm font-semibold text-gray-700"
                     >
-                      Filter by Date
+                      Date (event local time)
                     </label>
 
                     <input
@@ -140,24 +166,58 @@ function Events() {
                       type="date"
                       value={selectedDate}
                       onChange={(event) =>
-                        setSelectedDate(event.target.value)
+                        changeFilters({ date: event.target.value })
                       }
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
+                  <div>
+                    <label htmlFor="event-status" className="mb-2 block text-sm font-semibold text-gray-700">Event status</label>
+                    <select id="event-status" value={status} onChange={event => changeFilters({ status: event.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500">
+                      <option value="upcoming">Upcoming</option>
+                      {multiDay && <><option value="ongoing">Ongoing</option><option value="past">Past</option></>}
+                      <option value="all">All events</option>
+                    </select>
+                  </div>
+                  {categories.length > 0 && <div>
+                    <label htmlFor="event-category" className="mb-2 block text-sm font-semibold text-gray-700">Category</label>
+                    <select id="event-category" value={category} onChange={event => changeFilters({ category: event.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500">
+                      <option value="">All categories</option>
+                      {categories.map(value => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </div>}
+                  {pricingEnabled && <div>
+                    <label htmlFor="event-pricing" className="mb-2 block text-sm font-semibold text-gray-700">Pricing</label>
+                    <select id="event-pricing" value={pricing} onChange={event => changeFilters({ pricing: event.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500">
+                      <option value="all">All prices</option><option value="free">Free</option><option value="paid">Paid</option>
+                    </select>
+                  </div>}
                 </div>
+
+                {coordinatesEnabled && <EventRadiusFilter params={searchParams} onChange={changeFilters} />}
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                   <p
                     className="text-sm text-gray-500"
                     role="status"
                   >
-                    {filteredEvents.length}{" "}
-                    {filteredEvents.length === 1
+                    {!isLoading && !error && pagination ? <>{pagination.total}{" "}
+                    {pagination.total === 1
                       ? "event"
                       : "events"}{" "}
-                    found
+                    found</> : ""}
                   </p>
+
+                  <div className="flex items-center gap-3">
+                    <label htmlFor="event-page-size" className="text-sm font-semibold text-gray-700">Events per page</label>
+                    <select id="event-page-size" value={pageSize} onChange={event => changeFilters({ page_size: event.target.value })}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                      {sizeOptions.map(size => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </div>
 
                   {hasActiveFilters && (
                     <button
@@ -169,31 +229,37 @@ function Events() {
                     </button>
                   )}
                 </div>
-              </div>
-            )}
+            </div>
 
-            {loading && (
+            {isLoading && (
               <p className="text-center text-gray-600" role="status">
                 Loading events...
               </p>
             )}
 
-            {error && (
+            {!isLoading && error && (
               <p className="text-center text-red-600" role="alert">
                 {error}
               </p>
             )}
 
-            {!loading && !error && events.length === 0 && (
+            {!isLoading && !error && outOfRange && (
+              <div className="text-center">
+                <p role="status" className="text-gray-600">This page is unavailable. There are {pagination.total_pages} pages of matching events.</p>
+                <button type="button" onClick={() => changePage(1)} className="mt-4 font-semibold text-blue-600">Go to first page</button>
+              </div>
+            )}
+
+            {!isLoading && !error && !outOfRange && events.length === 0 && (
               <p className="text-center text-gray-600">
-                No events are available right now.
+                {hasActiveFilters ? "No events match your filters." : "No upcoming events are available right now."}
               </p>
             )}
 
-            {!loading &&
+            {!isLoading &&
               !error &&
               events.length > 0 &&
-              filteredEvents.length === 0 && (
+              visibleEvents.length === 0 && (
                 <div className="py-10 text-center">
                   <p className="text-gray-600">
                     No events match your filters.
@@ -209,21 +275,22 @@ function Events() {
                 </div>
               )}
 
-            {!loading && !error && filteredEvents.length > 0 && (
+            {!isLoading && !error && visibleEvents.length > 0 && (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    id={event.id}
-                    title={event.title}
-                    date={formatDate(event.date)}
-                    time={formatTime(event.time)}
-                    location={event.location}
-                    description={event.description}
-                    attendeeCount={event.attendee_count}
-                  />
+                {visibleEvents.map((event) => (
+                  <EventCard key={event.id} event={event} now={now} />
                 ))}
               </div>
+            )}
+
+            {!isLoading && !error && pagination && pagination.total_pages > 0 && !outOfRange && (
+              <nav aria-label="Event pages" className="mt-8 flex flex-wrap items-center justify-center gap-5">
+                <button type="button" disabled={!pagination.has_previous} onClick={() => changePage(pagination.page - 1)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400">Previous</button>
+                <p role="status" className="text-sm text-gray-600">Page {pagination.page} of {pagination.total_pages}</p>
+                <button type="button" disabled={!pagination.has_next} onClick={() => changePage(pagination.page + 1)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400">Next</button>
+              </nav>
             )}
           </div>
         </section>

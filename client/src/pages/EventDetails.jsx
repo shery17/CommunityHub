@@ -3,6 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
+import EventSchedule from "../components/EventSchedule";
+import { eventAvailability } from "../eventDisplay";
+import useEventClock from "../useEventClock";
 
 function EventDetails() {
   const { id } = useParams();
@@ -18,24 +21,18 @@ function EventDetails() {
   const [registering, setRegistering] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState("");
   const [registrationError, setRegistrationError] = useState("");
+  const [registrationState, setRegistrationState] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const currentTime = useEventClock();
 
   const isOwner =
     user && event && Number(event.created_by) === Number(user.id);
 
-  const hasEventStarted = event
-    ? new Date(`${String(event.date).slice(0, 10)}T${event.time}`).getTime() <=
-      currentTime
-    : false;
-
-  // Refresh the registration state while the page remains open.
-  useEffect(() => {
-    const intervalId = setInterval(() => setCurrentTime(Date.now()), 15000);
-    return () => clearInterval(intervalId);
-  }, []);
+  const displayEvent = event ? { ...event, ...(registrationState?.eventId === id ? registrationState : {}) } : null;
+  const availability = eventAvailability(displayEvent, currentTime);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +87,7 @@ function EventDetails() {
       const token = sessionStorage.getItem("token");
 
       setRegistered(false);
+      setRegistrationState(null);
       setRegistrationMessage("");
       setRegistrationError("");
 
@@ -112,6 +110,10 @@ function EventDetails() {
 
         const data = await response.json();
 
+        if (response.status === 401) {
+          throw new Error("Your session has expired. Please log in again.");
+        }
+
         if (!response.ok) {
           throw new Error(
             data.message || "Unable to check registration status."
@@ -120,6 +122,7 @@ function EventDetails() {
 
         if (!cancelled) {
           setRegistered(data.registered);
+          setRegistrationState({ ...data, eventId: id });
         }
       } catch (error) {
         if (!cancelled) {
@@ -177,6 +180,7 @@ function EventDetails() {
       }
 
       if (!response.ok) {
+        if (response.status === 403) setRegistrationState(previous => ({ ...previous, eventId: id, registration_open: false }));
         throw new Error(
           data.message || "Unable to register for this event."
         );
@@ -202,6 +206,34 @@ function EventDetails() {
     } finally {
       setRegistering(false);
     }
+  }
+
+  async function handleCancelRegistration() {
+    if (!window.confirm("Are you sure you want to cancel your registration for this event?")) return;
+    const token = sessionStorage.getItem("token");
+    if (!token) {
+      setRegistrationError("Your session has expired. Please log in again.");
+      return;
+    }
+    setCancelling(true);
+    setRegistrationMessage("");
+    setRegistrationError("");
+    try {
+      const response = await fetch(`http://localhost:5001/api/events/${id}/register`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (response.status === 401) throw new Error("Your session has expired. Please log in again.");
+      if (!response.ok) {
+        if (response.status === 403) setRegistrationState(previous => ({ ...previous, eventId: id, cancellation_open: false }));
+        throw new Error(data.message || "Unable to cancel registration.");
+      }
+      setRegistered(false);
+      setEvent(previous => previous ? { ...previous, attendee_count: Math.max(0, Number(previous.attendee_count ?? 0) - 1) } : previous);
+      setRegistrationMessage("Your registration has been cancelled.");
+    } catch (error) {
+      setRegistrationError(error.message || "Unable to cancel registration.");
+    } finally { setCancelling(false); }
   }
 
   async function handleDeleteEvent() {
@@ -252,32 +284,6 @@ function EventDetails() {
     }
   }
 
-  function formatDate(dateString) {
-    const [year, month, day] = dateString
-      .slice(0, 10)
-      .split("-")
-      .map(Number);
-
-    return new Date(year, month - 1, day).toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  }
-
-  function formatTime(timeString) {
-    const [hours, minutes] = timeString.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-
-    return date.toLocaleTimeString("en-GB", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  }
-
   return (
     <>
       <Header />
@@ -325,34 +331,7 @@ function EventDetails() {
                   {event.title}
                 </h1>
 
-                <div className="mt-6 space-y-4 text-gray-600">
-                  <p>
-                    <span className="mr-2" aria-hidden="true">📅</span>
-                    <strong className="text-gray-900">Date:</strong>{" "}
-                    {formatDate(event.date)}
-                  </p>
-
-                  <p>
-                    <span className="mr-2" aria-hidden="true">🕐</span>
-                    <strong className="text-gray-900">Time:</strong>{" "}
-                    {formatTime(event.time)}
-                  </p>
-
-                  <p>
-                    <span className="mr-2" aria-hidden="true">📍</span>
-                    <strong className="text-gray-900">Location:</strong>{" "}
-                    {event.location}
-                  </p>
-
-                  <p>
-                    <span className="mr-2" aria-hidden="true">👥</span>
-                    <strong className="text-gray-900">Attendees:</strong>{" "}
-                    {Number(event.attendee_count ?? 0)}{" "}
-                    {Number(event.attendee_count ?? 0) === 1
-                      ? "person attending"
-                      : "people attending"}
-                  </p>
-                </div>
+                <EventSchedule event={displayEvent} now={currentTime} />
 
                 <div className="mt-8 border-t border-gray-200 pt-6">
                   <h2 className="text-xl font-bold text-gray-900">
@@ -406,16 +385,22 @@ function EventDetails() {
                       Checking your registration...
                     </p>
                   ) : registered ? (
-                    <p className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 font-medium text-green-800">
-                      ✓ You're registered for this event!
-                    </p>
-                  ) : hasEventStarted ? (
+                    <div className="mt-4">
+                      <p className="rounded-lg border border-green-200 bg-green-50 p-4 font-medium text-green-800">
+                        ✓ You're registered for this event!
+                      </p>
+                      {availability.cancellationOpen ? <button type="button" onClick={handleCancelRegistration}
+                        disabled={cancelling || registering} className="mt-4 rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60">
+                        {cancelling ? "Cancelling..." : "Cancel Registration"}
+                      </button> : <p className="mt-3 text-sm text-gray-600">This event has ended. Your attendance is kept in your history.</p>}
+                    </div>
+                  ) : !availability.registrationOpen ? (
                     <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5" role="status">
                       <p className="font-semibold text-gray-900">
                         🔒 Registration Closed
                       </p>
                       <p className="mt-2 text-sm text-gray-600">
-                        This event has already started. New registrations are no longer accepted.
+                        The registration deadline or event start has been reached. New registrations are no longer accepted.
                       </p>
                     </div>
                   ) : !user ? (
@@ -435,7 +420,7 @@ function EventDetails() {
                     <button
                       type="button"
                       onClick={handleRegister}
-                      disabled={registering}
+                      disabled={registering || cancelling || !registrationState}
                       className="mt-4 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {registering ? "Registering..." : "Register for Event"}

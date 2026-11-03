@@ -4,6 +4,9 @@ import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
+import EventSchedule from "../components/EventSchedule";
+import { eventAvailability } from "../eventDisplay";
+import useEventClock from "../useEventClock";
 
 function Profile() {
   const { user, logout } = useAuth();
@@ -20,6 +23,8 @@ function Profile() {
 
   const [cancellingEventId, setCancellingEventId] = useState(null);
   const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const currentTime = useEventClock();
 
   useEffect(() => {
     let cancelled = false;
@@ -141,12 +146,12 @@ function Profile() {
     const token = sessionStorage.getItem("token");
 
     if (!token) {
-      setError("Your session has expired. Please log in again.");
+      setActionError("Your session has expired. Please log in again.");
       return;
     }
 
     setCancellingEventId(eventId);
-    setError("");
+    setActionError("");
     setActionMessage("");
 
     try {
@@ -163,6 +168,7 @@ function Profile() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403) setEvents(previous => previous.map(event => event.id === eventId ? { ...event, cancellation_open: false } : event));
         throw new Error(
           data.message || "Unable to cancel registration."
         );
@@ -171,40 +177,16 @@ function Profile() {
       setEvents((previousEvents) =>
         previousEvents.filter((event) => event.id !== eventId)
       );
+      setCreatedEvents(previous => previous.map(event => event.id === eventId
+        ? { ...event, attendee_count: Math.max(0, Number(event.attendee_count ?? 0) - 1) } : event));
 
       setActionMessage("Your event registration has been cancelled.");
     } catch (error) {
       console.error("Error cancelling registration:", error);
-      setError(error.message || "Something went wrong. Please try again.");
+      setActionError(error.message || "Something went wrong. Please try again.");
     } finally {
       setCancellingEventId(null);
     }
-  }
-
-  function formatDate(dateString) {
-    const [year, month, day] = String(dateString)
-      .slice(0, 10)
-      .split("-")
-      .map(Number);
-
-    return new Date(year, month - 1, day).toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  }
-
-  function formatTime(timeString) {
-    const [hours, minutes] = timeString.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-
-    return date.toLocaleTimeString("en-GB", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
   }
 
   if (!user) {
@@ -298,6 +280,8 @@ function Profile() {
               </p>
             )}
 
+            {actionError && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">{actionError}</p>}
+
             {loading && (
               <p
                 className="rounded-xl bg-white p-6 text-gray-600"
@@ -341,17 +325,7 @@ function Profile() {
                       {event.title}
                     </h3>
 
-                    <p className="mt-3 text-sm text-gray-600">
-                      <strong>Date:</strong> {formatDate(event.date)}
-                    </p>
-
-                    <p className="mt-2 text-sm text-gray-600">
-                      <strong>Time:</strong> {formatTime(event.time)}
-                    </p>
-
-                    <p className="mt-2 text-sm text-gray-600">
-                      <strong>Location:</strong> {event.location}
-                    </p>
+                    <EventSchedule event={event} now={currentTime} />
 
                     <div className="mt-5 flex flex-wrap items-center gap-4">
                       <Link
@@ -361,7 +335,7 @@ function Profile() {
                         View Event →
                       </Link>
 
-                      <button
+                      {eventAvailability(event, currentTime).cancellationOpen ? <button
                         type="button"
                         onClick={() => handleCancelRegistration(event.id)}
                         disabled={cancellingEventId !== null}
@@ -370,7 +344,7 @@ function Profile() {
                         {cancellingEventId === event.id
                           ? "Cancelling..."
                           : "Cancel Registration"}
-                      </button>
+                      </button> : <p className="text-sm text-gray-600">This event has ended. Your attendance is kept in your history.</p>}
                     </div>
                   </article>
                 ))}
@@ -432,17 +406,7 @@ function Profile() {
                         {event.title}
                       </h3>
 
-                      <p className="mt-3 text-sm text-gray-600">
-                        <strong>Date:</strong> {formatDate(event.date)}
-                      </p>
-
-                      <p className="mt-2 text-sm text-gray-600">
-                        <strong>Time:</strong> {formatTime(event.time)}
-                      </p>
-
-                      <p className="mt-2 text-sm text-gray-600">
-                        <strong>Location:</strong> {event.location}
-                      </p>
+                      <EventSchedule event={event} now={currentTime} />
 
                       <div className="mt-5 flex flex-wrap items-center gap-4">
                         <Link

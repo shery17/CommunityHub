@@ -1,40 +1,58 @@
+import EventLocationFields from "../components/EventLocationFields";
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
+import EventTimingFields from "../components/EventTimingFields";
+import EventCategoryField from "../components/EventCategoryField";
+import EventPricingFields from "../components/EventPricingFields";
+import { emptyEventForm, eventToForm, changeEventForm, buildEventPayload, eventTimingLocks } from "../eventFormTiming";
 
 function EditEvent() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    date: "",
-    time: "",
-    location: "",
-  });
+  const [formData, setFormData] = useState({ ...emptyEventForm });
+  const [existingEvent, setExistingEvent] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [pricing, setPricing] = useState(null);
+  const [structuredLocation, setStructuredLocation] = useState(false);
+  const [coordinatesEnabled, setCoordinatesEnabled] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const multiDay = Boolean(existingEvent?.start_date);
+  const locks = eventTimingLocks(existingEvent, currentTime);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function fetchEvent() {
+      setLoading(true);
+      setError("");
+      setExistingEvent(null);
       try {
-        const response = await fetch(
-          `http://localhost:5001/api/events/${id}`
-        );
+        const [response, configResponse] = await Promise.all([
+          fetch(`http://localhost:5001/api/events/${id}`),
+          fetch("http://localhost:5001/api/events/config"),
+        ]);
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.message || "Unable to load event.");
         }
+        if (!configResponse.ok) throw new Error("Unable to load event categories. Please try again.");
+        const config = await configResponse.json();
 
         if (!cancelled) {
           if (Number(data.created_by) !== Number(user?.id)) {
@@ -42,13 +60,12 @@ function EditEvent() {
             return;
           }
 
-          setFormData({
-            title: data.title ?? "",
-            description: data.description ?? "",
-            date: data.date ? String(data.date).slice(0, 10) : "",
-            time: data.time ? String(data.time).slice(0, 5) : "",
-            location: data.location ?? "",
-          });
+          setFormData(eventToForm(data));
+          setCategories(config.categories ?? []);
+          setPricing(config.pricing ?? null);
+          setStructuredLocation(Boolean(config.structured_location));
+          setCoordinatesEnabled(Boolean(config.coordinates));
+          setExistingEvent(data);
         }
       } catch (error) {
         if (!cancelled) {
@@ -71,14 +88,12 @@ function EditEvent() {
   function handleChange(event) {
     const { name, value } = event.target;
 
-    setFormData((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+    setFormData(previous => changeEventForm(previous, name, value));
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (!existingEvent) return;
 
     const token = sessionStorage.getItem("token");
 
@@ -99,7 +114,7 @@ function EditEvent() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(buildEventPayload(formData, multiDay)),
         }
       );
 
@@ -143,7 +158,7 @@ function EditEvent() {
               <p className="mt-6 text-gray-600" role="status">
                 Loading event details...
               </p>
-            ) : error && !formData.title ? (
+            ) : !existingEvent ? (
               <div className="mt-6">
                 <p className="text-red-600" role="alert">
                   {error}
@@ -151,6 +166,11 @@ function EditEvent() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+                {multiDay && Number(existingEvent.attendee_count) > 0 && !locks.start && (
+                  <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    This event has {existingEvent.attendee_count} registered {Number(existingEvent.attendee_count) === 1 ? "attendee" : "attendees"}. Timing changes affect them; please let them know about any changes.
+                  </p>
+                )}
                 <div>
                   <label
                     htmlFor="title"
@@ -188,43 +208,9 @@ function EditEvent() {
                   />
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label
-                      htmlFor="date"
-                      className="mb-2 block text-sm font-semibold text-gray-700"
-                    >
-                      Date
-                    </label>
-                    <input
-                      id="date"
-                      name="date"
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={handleChange}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="time"
-                      className="mb-2 block text-sm font-semibold text-gray-700"
-                    >
-                      Time
-                    </label>
-                    <input
-                      id="time"
-                      name="time"
-                      type="time"
-                      required
-                      value={formData.time}
-                      onChange={handleChange}
-                      className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    />
-                  </div>
-                </div>
+                <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={saving} />
+                <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={saving} />
+                <EventTimingFields form={formData} onChange={handleChange} multiDay={multiDay} locks={locks} disabled={saving} />
 
                 <div>
                   <label
@@ -244,6 +230,8 @@ function EditEvent() {
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
+
+                <EventLocationFields coordinatesEnabled={coordinatesEnabled} onSelectPlace={place=>setFormData(previous=>({...previous,...place}))} form={formData} onChange={handleChange} enabled={structuredLocation} disabled={saving} />
 
                 {error && (
                   <p className="text-sm text-red-600" role="alert">

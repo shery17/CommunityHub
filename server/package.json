@@ -4,6 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "add-event-coordinates": "node addEventCoordinates.js",
+    "add-event-locations": "node addEventLocations.js",
+    "add-event-pricing": "node addEventPricing.js",
+    "add-event-categories": "node addEventCategories.js",
+    "test": "node --test",
     "start": "node server.js",
     "create-tables": "node createTables.js",
     "log-tables": "node logTables.js",
@@ -14,6 +19,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

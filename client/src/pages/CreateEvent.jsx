@@ -1,33 +1,60 @@
-import { useState } from "react";
+import EventLocationFields from "../components/EventLocationFields";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import EventTimingFields from "../components/EventTimingFields";
+import EventCategoryField from "../components/EventCategoryField";
+import EventPricingFields from "../components/EventPricingFields";
+import { emptyEventForm, changeEventForm, buildEventPayload } from "../eventFormTiming";
 
 function CreateEvent() {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    date: "",
-    time: "",
-    location: "",
-  });
+  const [formData, setFormData] = useState({ ...emptyEventForm });
+  const [multiDay, setMultiDay] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [pricing, setPricing] = useState(null);
+  const [structuredLocation, setStructuredLocation] = useState(false);
+  const [coordinatesEnabled, setCoordinatesEnabled] = useState(false);
+  const [configError, setConfigError] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfig() {
+      try {
+        const response = await fetch("http://localhost:5001/api/events/config");
+        const data = await response.json();
+        if (!response.ok || typeof data.multi_day !== "boolean") {
+          throw new Error(data.message || "Unable to load the event form.");
+        }
+        if (!cancelled) {
+          setMultiDay(data.multi_day);
+          setCategories(data.categories ?? []);
+          setPricing(data.pricing ?? null);
+          setStructuredLocation(Boolean(data.structured_location));
+          setCoordinatesEnabled(Boolean(data.coordinates));
+        }
+      } catch (error) {
+        if (!cancelled) setConfigError(error.message || "Unable to load the event form.");
+      }
+    }
+    loadConfig();
+    return () => { cancelled = true; };
+  }, []);
+
   function handleChange(event) {
     const { name, value } = event.target;
 
-    setFormData((previousData) => ({
-      ...previousData,
-      [name]: value,
-    }));
+    setFormData(previous => changeEventForm(previous, name, value));
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (multiDay === null) return;
 
     setLoading(true);
     setError("");
@@ -45,7 +72,7 @@ function CreateEvent() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(buildEventPayload(formData, multiDay, { creating: true })),
       });
 
       const data = await response.json();
@@ -82,7 +109,11 @@ function CreateEvent() {
             </p>
           </div>
 
-          <form
+          {multiDay === null ? (
+            <p role={configError ? "alert" : "status"} className={configError ? "text-red-600" : "text-gray-600"}>
+              {configError || "Loading event form..."}
+            </p>
+          ) : <form
             onSubmit={handleSubmit}
             className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
           >
@@ -130,47 +161,9 @@ function CreateEvent() {
                 />
               </div>
 
-              {/* Date and Time */}
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="date"
-                    className="block text-sm font-semibold text-gray-900"
-                  >
-                    Date
-                  </label>
-
-                  <input
-                    id="date"
-                    name="date"
-                    type="date"
-                    value={formData.date}
-                    onChange={handleChange}
-                    min={new Date().toLocaleDateString("en-CA")}
-                    required
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="time"
-                    className="block text-sm font-semibold text-gray-900"
-                  >
-                    Time
-                  </label>
-
-                  <input
-                    id="time"
-                    name="time"
-                    type="time"
-                    value={formData.time}
-                    onChange={handleChange}
-                    required
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-              </div>
+              <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={loading} />
+              <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={loading} />
+              <EventTimingFields form={formData} onChange={handleChange} multiDay={multiDay} disabled={loading} />
 
               {/* Location */}
               <div>
@@ -195,6 +188,10 @@ function CreateEvent() {
               </div>
             </div>
 
+            <div className="mt-6">
+              <EventLocationFields coordinatesEnabled={coordinatesEnabled} onSelectPlace={place=>setFormData(previous=>({...previous,...place}))} form={formData} onChange={handleChange} enabled={structuredLocation} disabled={loading} />
+            </div>
+
             {/* Error message */}
             {error && (
               <p className="mt-6 text-sm text-red-600" role="alert">
@@ -212,7 +209,7 @@ function CreateEvent() {
                 {loading ? "Creating Event..." : "Create Event"}
               </button>
             </div>
-          </form>
+          </form>}
         </div>
       </main>
 
