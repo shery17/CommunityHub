@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import pool from "./db.js";
 import { categoryCheckSql } from "./eventCategories.js";
 import { getEventReadModel } from "./eventReadModel.js";
-import { buildSeedEvents } from "./seedEvents.js";
+import { buildSeedEvents, seedOrganiserEmail } from "./seedEvents.js";
 
 export async function addEventCategories(db = pool) {
   const client = await db.connect();
@@ -20,9 +20,9 @@ export async function addEventCategories(db = pool) {
     let backfilled = 0;
     for (const sample of buildSeedEvents()) {
       const result = await client.query(`UPDATE events SET category = $1
-        WHERE category IS NULL AND created_by IS NULL AND title = $2
+        WHERE category IS NULL AND (created_by IS NULL OR created_by = (SELECT id FROM users WHERE email = $5)) AND title = $2
           AND description = $3 AND location = $4`,
-      [sample.category, sample.title, sample.description, sample.location]);
+      [sample.category, sample.title, sample.description, sample.location, seedOrganiserEmail]);
       backfilled += result.rowCount;
     }
     await client.query("COMMIT");

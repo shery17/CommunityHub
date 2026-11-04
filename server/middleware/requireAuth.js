@@ -28,7 +28,8 @@ function requireAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!decoded.userId) {
+    if (!decoded.userId || decoded.verified !== true ||
+        (process.env.REQUIRE_EMAIL_VERIFICATION === "true" && decoded.emailVerified !== true)) {
       return res.status(401).json({
         message: "Invalid authentication token.",
       });

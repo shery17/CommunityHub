@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import GoogleSignIn from "../components/GoogleSignIn";
 import { useAuth } from "../context/AuthContext";
 
 function Login() {
@@ -10,11 +11,12 @@ function Login() {
   const { login } = useAuth();
 
   const [formData, setFormData] = useState({
-    email: "",
+    email: state?.email ?? "",
     password: "",
   });
 
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [error, setError] = useState("");
 
   function handleChange(event) {
@@ -31,6 +33,7 @@ function Login() {
 
     setLoading(true);
     setError("");
+    setNeedsVerification(false);
 
     try {
       const response = await fetch(
@@ -47,6 +50,7 @@ function Login() {
       const data = await response.json();
 
       if (!response.ok) {
+        setNeedsVerification(data.code === "EMAIL_UNVERIFIED");
         throw new Error(data.message || "Unable to log in.");
       }
 
@@ -76,6 +80,10 @@ function Login() {
               Log in to your CommunityHub account.
             </p>
           </div>
+
+          {state?.accountCreated && <p role="status" className="mb-4 text-center text-sm text-green-800">
+            Account created. You can now sign in.
+          </p>}
 
           <form
             onSubmit={handleSubmit}
@@ -144,13 +152,22 @@ function Login() {
             <p className="mt-6 text-center text-sm text-gray-600">
               Don't have an account?{" "}
               <Link
-                to="/register"
+                to="/register" state={state}
                 className="font-semibold text-blue-600 hover:text-blue-700"
               >
                 Create an account
               </Link>
             </p>
           </form>
+          {needsVerification && <div className="mt-4 text-center">
+            <Link to="/verify-email" state={{ email: formData.email, returnTo: state?.returnTo }} className="text-sm font-semibold text-blue-700">
+              Resend verification email
+            </Link>
+          </div>}
+          <div className="mt-4"><GoogleSignIn onSuccess={data => {
+            login(data.user, data.token);
+            navigate(state?.returnTo === "/create-event" ? "/create-event" : "/", { replace: true });
+          }} /></div>
         </div>
       </main>
 

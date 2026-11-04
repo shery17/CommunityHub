@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import pool from "./db.js";
 import { priceCheckSql, priceCurrencyCheckSql } from "./eventPricing.js";
 import { getEventReadModel } from "./eventReadModel.js";
-import { buildSeedEvents } from "./seedEvents.js";
+import { buildSeedEvents, seedOrganiserEmail } from "./seedEvents.js";
 
 export async function addEventPricing(db = pool) {
   const client = await db.connect();
@@ -19,9 +19,9 @@ export async function addEventPricing(db = pool) {
     let backfilled = 0;
     for (const sample of buildSeedEvents()) {
       const result = await client.query(`UPDATE events SET price = $1, currency = $2
-        WHERE price IS NULL AND currency IS NULL AND created_by IS NULL
+        WHERE price IS NULL AND currency IS NULL AND (created_by IS NULL OR created_by = (SELECT id FROM users WHERE email = $6))
           AND title = $3 AND description = $4 AND location = $5`,
-      [sample.price, sample.currency, sample.title, sample.description, sample.location]);
+      [sample.price, sample.currency, sample.title, sample.description, sample.location, seedOrganiserEmail]);
       backfilled += result.rowCount;
     }
     await client.query("COMMIT");

@@ -11,7 +11,12 @@ CREATE TABLE users (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
+    email_verified_at TIMESTAMPTZ,
+    verification_hash TEXT UNIQUE,
+    verification_expires_at TIMESTAMPTZ,
+    verification_sent_at TIMESTAMPTZ,
+    google_subject TEXT UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -40,7 +45,7 @@ CREATE TABLE events (
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     place_label VARCHAR(500),
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT events_coordinates_valid CHECK (
         (latitude IS NULL AND longitude IS NULL AND place_label IS NULL) OR

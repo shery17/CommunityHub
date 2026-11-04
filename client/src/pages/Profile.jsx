@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import GoogleSignIn from "../components/GoogleSignIn";
 import { useAuth } from "../context/AuthContext";
 import EventSchedule from "../components/EventSchedule";
 import { eventAvailability } from "../eventDisplay";
 import useEventClock from "../useEventClock";
 
 function Profile() {
-  const { user, logout } = useAuth();
+  const { user, logout, login } = useAuth();
   const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
@@ -247,6 +248,7 @@ function Profile() {
 
                 <p className="mt-3 text-sm text-gray-500">Email</p>
                 <p className="font-medium text-gray-900">{user.email}</p>
+                {user.googleLinked ? <p className="mt-3 text-sm text-gray-600">Google account linked</p> : <GoogleSignIn linking onSuccess={data => login(data.user, data.token)} />}
               </div>
 
               <button

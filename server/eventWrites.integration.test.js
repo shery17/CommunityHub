@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolveEventTiming, eventTimingStatus } from "./eventTiming.js";
-import { seedEvents, buildSeedEvents } from "./seedEvents.js";
+import { seedEvents, buildSeedEvents, seedOrganiserEmail } from "./seedEvents.js";
 import { EVENT_CATEGORIES } from "./eventCategories.js";
 import { addEventCategories } from "./addEventCategories.js";
 import { PRICING_CONFIG } from "./eventPricing.js";
@@ -68,7 +68,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
     const users = (await client.query(`INSERT INTO users (name, email, password_hash)
       VALUES ('Owner', 'owner@example.invalid', 'unused'),
         ('Other', 'other@example.invalid', 'unused') RETURNING id`)).rows;
-    const token = id => jwt.sign({ userId: id }, process.env.JWT_SECRET, { expiresIn: "1m" });
+    const token = id => jwt.sign({ userId: id, verified: true, emailVerified: true }, process.env.JWT_SECRET, { expiresIn: "1m" });
     const ownerToken = token(users[0].id);
     const otherToken = token(users[1].id);
     const futureYear = new Date().getUTCFullYear() + 2;
@@ -646,12 +646,13 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       } finally { attendanceTestInstant = null; }
     });
 
+    const seedOwner = "created_by = (SELECT id FROM users WHERE email = $1)";
     let seedIds;
     await t.test("seeds insert valid lifecycle examples and reruns preserve schedules and attendance", async () => {
       const seedNow = new Date().toISOString();
       assert.deepEqual(await seedEvents(pool, seedNow), { inserted: 6, skipped: 0 });
       const definitions = buildSeedEvents(seedNow);
-      const seeded = (await client.query("SELECT id, title, start_date::text, start_time::text FROM events WHERE created_by IS NULL")).rows;
+      const seeded = (await client.query("SELECT id, title, created_by, start_date::text, start_time::text FROM events WHERE " + seedOwner, [seedOrganiserEmail])).rows;
       assert.equal(seeded.length, 6);
       seedIds = seeded.map(event => event.id);
       for (const sample of seeded) {
@@ -663,7 +664,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
           eventTimingStatus(resolveEventTiming(expected), seedNow));
         assert.equal(detail.body.start_offset, expected.start_offset);
         assert.equal(detail.body.end_offset, expected.end_offset);
-        assert.equal(detail.body.created_by, null);
+        assert.equal(detail.body.created_by, sample.created_by);
         assert.equal(detail.body.category, expected.category);
         assert.equal(detail.body.price, expected.price);
         assert.equal(detail.body.currency, expected.currency);
@@ -673,7 +674,13 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       // A later rerun must not move existing samples to freshly generated dates.
       const later = new Date(Date.parse(seedNow) + 30 * 86400000).toISOString();
       assert.deepEqual(await seedEvents(pool, later), { inserted: 0, skipped: 6 });
-      assert.deepEqual((await client.query("SELECT id, title, start_date::text, start_time::text FROM events WHERE created_by IS NULL")).rows, seeded);
+      assert.deepEqual((await client.query("SELECT id, title, created_by, start_date::text, start_time::text FROM events WHERE " + seedOwner, [seedOrganiserEmail])).rows, seeded);
+      await client.query("SAVEPOINT required_owner");
+      await assert.rejects(client.query("UPDATE events SET created_by = NULL WHERE id = $1", [seedIds[0]]), { code: "23502" });
+      await client.query("ROLLBACK TO SAVEPOINT required_owner");
+      await assert.rejects(client.query("DELETE FROM users WHERE email = $1", [seedOrganiserEmail]), { code: "23503" });
+      await client.query("ROLLBACK TO SAVEPOINT required_owner");
+      await client.query("RELEASE SAVEPOINT required_owner");
       assert.equal((await request("GET", `/${sampleId}`)).body.attendee_count, 1);
     });
 
@@ -693,7 +700,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       } };
       await assert.rejects(seedEvents(failingDb), /Simulated seed failure/);
       assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events")).rows[0].count, before);
-      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE created_by IS NULL")).rows[0].count, 0);
+      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE " + seedOwner, [seedOrganiserEmail])).rows[0].count, 0);
     });
 
     await t.test("category update preserves existing data and is repeatable", async () => {
@@ -709,12 +716,12 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       assert.deepEqual(await addEventCategories(pool), { backfilled: 6 });
       assert.deepEqual((await client.query(snapshotSql)).rows, before);
       assert.deepEqual((await client.query("SELECT * FROM event_attendees ORDER BY id")).rows, registrations);
-      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE created_by IS NULL AND category IS NOT NULL")).rows[0].count, 6);
+      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE " + seedOwner + " AND category IS NOT NULL", [seedOrganiserEmail])).rows[0].count, 6);
       assert.deepEqual(await addEventCategories(pool), { backfilled: 0 });
       assert.deepEqual((await client.query(snapshotSql)).rows, before);
     });
 
-    await t.test("pricing schema update preserves event data and backfills only known unowned samples", async () => {
+    await t.test("pricing schema update preserves event data and backfills only known sample events", async () => {
       const snapshot = "SELECT id, title, category, start_date::text, start_time::text, end_date::text, end_time::text, created_by FROM events ORDER BY id";
       const before = (await client.query(snapshot)).rows;
       const attendance = (await client.query("SELECT * FROM event_attendees ORDER BY id")).rows;
@@ -724,8 +731,8 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       assert.deepEqual(await addEventPricing(pool), { backfilled: 6 });
       assert.deepEqual((await client.query(snapshot)).rows, before);
       assert.deepEqual((await client.query("SELECT * FROM event_attendees ORDER BY id")).rows, attendance);
-      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE created_by IS NULL AND price IS NOT NULL")).rows[0].count, 6);
-      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE created_by IS NOT NULL AND price IS NOT NULL")).rows[0].count, 0);
+      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE " + seedOwner + " AND price IS NOT NULL", [seedOrganiserEmail])).rows[0].count, 6);
+      assert.equal((await client.query("SELECT COUNT(*)::integer AS count FROM events WHERE NOT (" + seedOwner + ") AND price IS NOT NULL", [seedOrganiserEmail])).rows[0].count, 0);
       assert.deepEqual(await addEventPricing(pool), { backfilled: 0 });
     });
 
@@ -901,6 +908,76 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       assert.deepEqual(Object.keys(attendee).sort(), ["name", "registered_at", "registration_id"]);
       assert.equal(attendee.name, "Other");
       assert.ok(Number.isFinite(Date.parse(attendee.registered_at)));
+    });
+
+    await t.test("email verification activates accounts once and Google linking keeps account ownership", async authTest => {
+      const { OAuth2Client } = await import("google-auth-library");
+      const { default: bcrypt } = await import("bcrypt");
+      const settings = { REQUIRE_EMAIL_VERIFICATION: "true", RESEND_API_KEY: "test-key", VERIFICATION_FROM: "CommunityHub <test@example.invalid>",
+        CLIENT_ORIGIN: "http://localhost:5173", GOOGLE_CLIENT_ID: "test-google-client" };
+      const previous = Object.fromEntries(Object.keys(settings).map(key => [key, process.env[key]]));
+      Object.assign(process.env, settings);
+      const originalFetch = globalThis.fetch;
+      const messages = [];
+      authTest.mock.method(globalThis, "fetch", async (url, options) => {
+        if (url !== "https://api.resend.com/emails") return originalFetch(url, options);
+        messages.push(JSON.parse(options.body));
+        return new Response(null, { status: 200 });
+      });
+      const claims = {
+        gmail: { sub: "google-1", email: "new@gmail.com", name: "Google Member", email_verified: true },
+        existing: { sub: "google-2", email: "new@example.invalid", name: "Email Member", email_verified: true },
+        collision: { sub: "google-3", email: "existing@gmail.com", email_verified: true },
+      };
+      authTest.mock.method(OAuth2Client.prototype, "verifyIdToken", async ({ idToken, audience }) => {
+        assert.equal(audience, settings.GOOGLE_CLIENT_ID);
+        if (!claims[idToken]) throw new Error("Invalid credential");
+        return { getPayload: () => claims[idToken] };
+      });
+      const post = (route, body, auth = null) => request("POST", "/api/auth/" + route, body, auth);
+      const password = "example password";
+      try {
+        assert.equal((await post("register", { name: "Email Member", email: "bad" })).status, 400);
+        const email = "new@example.invalid";
+        assert.equal((await post("register", { name: "Email Member", email })).status, 400);
+        assert.equal((await post("register", { name: "Email Member", email, password })).status, 202);
+        assert.equal(messages.length, 1);
+        assert.equal((await post("resend-verification", { email })).status, 202);
+        assert.equal(messages.length, 1);
+        const link = new URL(messages[0].text.match(/http[^\s]+/)[0]);
+        const token = new URLSearchParams(link.hash.slice(1)).get("token");
+        const pending = (await client.query("SELECT * FROM users WHERE email = $1", [email])).rows[0];
+        assert.ok(await bcrypt.compare(password, pending.password_hash));
+        assert.notEqual(pending.verification_hash, token);
+        assert.equal((await post("login", { email, password })).body.code, "EMAIL_UNVERIFIED");
+        assert.equal((await post("verify-email", { token, password: "wrong password" })).status, 400);
+        assert.equal((await post("verify-email", { token, password })).status, 200);
+        assert.equal((await post("verify-email", { token, password })).status, 400);
+        const loggedIn = await post("login", { email, password });
+        assert.equal(loggedIn.status, 200);
+        assert.equal(loggedIn.body.user.id, pending.id);
+        assert.equal((await post("google", { credential: "bad" })).status, 401);
+        assert.equal((await post("google", { credential: "existing" })).status, 409);
+        assert.equal((await post("google/link", { credential: "existing" })).status, 401);
+        assert.equal((await post("google/link", { credential: "existing" }, loggedIn.body.token)).status, 200);
+        assert.equal((await post("google", { credential: "existing" })).body.user.id, pending.id);
+        const googleUser = await post("google", { credential: "gmail" });
+        assert.equal(googleUser.status, 200);
+        assert.equal((await post("google", { credential: "gmail" })).body.user.id, googleUser.body.user.id);
+        await client.query("INSERT INTO users (name,email,password_hash) VALUES ('Existing','existing@gmail.com',$1)", [await bcrypt.hash(password, 4)]);
+        assert.equal((await post("google", { credential: "collision" })).status, 409);
+        assert.equal((await post("login", { email: "existing@gmail.com", password })).body.code, "EMAIL_UNVERIFIED");
+        assert.equal((await post("resend-verification", { email: "existing@gmail.com" })).status, 202);
+        const legacyLink = new URL(messages[1].text.match(/http[^\s]+/)[0]);
+        const legacyToken = new URLSearchParams(legacyLink.hash.slice(1)).get("token");
+        await client.query("UPDATE users SET verification_expires_at = now() - interval '1 minute' WHERE email = 'existing@gmail.com'");
+        assert.equal((await post("verify-email", { token: legacyToken })).status, 400);
+      } finally {
+        for (const [key, value] of Object.entries(previous)) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
     });
 
     await t.test("legacy create and edit still work on the original schema", async () => {

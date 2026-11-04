@@ -69,6 +69,18 @@ export function buildSeedEvents(now = Temporal.Now.instant().toString()) {
   });
 }
 
+export const seedOrganiserEmail = "sample-organiser@communityhub.invalid";
+
+export async function ensureSeedOrganiser(db) {
+  await db.query("INSERT INTO users (name, email) VALUES ('CommunityHub Demo', $1) ON CONFLICT (email) DO NOTHING", [seedOrganiserEmail]);
+  const { rows } = await db.query(
+    "SELECT id FROM users WHERE email = $1 AND password_hash IS NULL AND google_subject IS NULL AND email_verified_at IS NULL",
+    [seedOrganiserEmail]
+  );
+  if (!rows.length) throw new Error("The reserved sample organiser account has unexpected credentials.");
+  return rows[0].id;
+}
+
 export async function seedEvents(db = pool, now = Temporal.Now.instant().toString()) {
   const events = buildSeedEvents(now);
   const client = await db.connect();
@@ -83,20 +95,21 @@ export async function seedEvents(db = pool, now = Temporal.Now.instant().toStrin
     // Serialize seed runs so the existence check also prevents concurrent rerun
     // duplicates. No sample events, users or registrations are overwritten.
     await client.query("SELECT pg_advisory_xact_lock(742018, 1)");
+    const organiserId = await ensureSeedOrganiser(client);
     let inserted = 0;
     for (const event of events) {
       const result = await client.query(
         `INSERT INTO events (title, description, location, start_date, start_time,
-           start_offset, end_date, end_time, end_offset, timezone, registration_deadline, category, price, currency)
+           start_offset, end_date, end_time, end_offset, timezone, registration_deadline, category, price, currency, created_by)
          SELECT $1::text, $2::text, $3::text, $4::date, $5::time, $6::text,
-           $7::date, $8::time, $9::text, $10::text, $11::timestamptz, $12::text, $13::numeric, $14::text
+           $7::date, $8::time, $9::text, $10::text, $11::timestamptz, $12::text, $13::numeric, $14::text, $15::integer
          WHERE NOT EXISTS (
            SELECT 1 FROM events WHERE title = $1 AND description = $2
-             AND location = $3 AND created_by IS NULL
+             AND location = $3 AND (created_by = $15 OR created_by IS NULL)
          ) RETURNING id`,
         [event.title, event.description, event.location, event.start_date, event.start_time,
           event.start_offset, event.end_date, event.end_time, event.end_offset,
-          event.timezone, event.registration_deadline, event.category, event.price, event.currency]
+          event.timezone, event.registration_deadline, event.category, event.price, event.currency, organiserId]
       );
       inserted += result.rowCount;
     }

@@ -5,6 +5,7 @@ import Events from "./pages/Events";
 import EventDetails from "./pages/EventDetails";
 import CreateEvent from "./pages/CreateEvent";
 import Login from "./pages/Login";
+import VerifyEmail from "./pages/VerifyEmail";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import EditEvent from "./pages/EditEvent";
@@ -18,6 +19,7 @@ function App() {
         <Route path="/events/:id" element={<EventDetails />} />
         <Route path="/create-event" element={<CreateEvent />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/register" element={<Register />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/events/:id/edit" element={<EditEvent />} />

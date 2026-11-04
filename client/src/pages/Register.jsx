@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import GoogleSignIn from "../components/GoogleSignIn";
+import { useAuth } from "../context/AuthContext";
 
 function Register() {
+  const navigate = useNavigate();
+  const { state } = useLocation();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -13,7 +19,6 @@ function Register() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -27,18 +32,19 @@ function Register() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    setError("");
-    setSuccess("");
-
+    const firstName = formData.firstName.trim();
+    const lastName = formData.lastName.trim();
+    const name = firstName + " " + lastName;
+    if (!firstName || !lastName || name.length > 100) {
+      setError("Enter a first and last name, up to 100 characters combined.");
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       setError("Your passwords do not match.");
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError("Your password must be at least 8 characters long.");
-      return;
-    }
+    setError("");
 
     setLoading(true);
 
@@ -51,7 +57,7 @@ function Register() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: formData.name,
+            name,
             email: formData.email,
             password: formData.password,
           }),
@@ -64,13 +70,8 @@ function Register() {
         throw new Error(data.message || "Unable to create your account.");
       }
 
-      setSuccess("Your account has been created successfully!");
-
-      setFormData({
-        name: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
+      navigate(data.verificationRequired ? "/verify-email" : "/login", {
+        state: { email: formData.email, returnTo: state?.returnTo, accountCreated: !data.verificationRequired },
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -103,27 +104,18 @@ function Register() {
             className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
           >
             <div className="space-y-5">
-              {/* Name */}
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-semibold text-gray-900"
-                >
-                  Name
-                </label>
-
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="Your name"
-                  autoComplete="name"
-                  maxLength={100}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
+              <div className="grid gap-5 sm:grid-cols-2">
+                {[
+                  ["firstName", "First name", "given-name"],
+                  ["lastName", "Last name", "family-name"],
+                ].map(([field, label, autoComplete]) => (
+                  <div key={field}>
+                    <label htmlFor={field} className="block text-sm font-semibold text-gray-900">{label}</label>
+                    <input id={field} name={field} type="text" value={formData[field]} onChange={handleChange}
+                      autoComplete={autoComplete} maxLength={100} required
+                      className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                  </div>
+                ))}
               </div>
 
               {/* Email */}
@@ -149,70 +141,22 @@ function Register() {
                 />
               </div>
 
-              {/* Password */}
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-semibold text-gray-900"
-                >
-                  Password
-                </label>
-
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="At least 8 characters"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label
-                  htmlFor="confirmPassword"
-                  className="block text-sm font-semibold text-gray-900"
-                >
-                  Confirm Password
-                </label>
-
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  placeholder="Confirm your password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
+              {[
+                ["password", "Password"],
+                ["confirmPassword", "Confirm password"],
+              ].map(([field, label]) => (
+                <div key={field}>
+                  <label htmlFor={field} className="block text-sm font-semibold text-gray-900">{label}</label>
+                  <input id={field} name={field} type="password" value={formData[field]} onChange={handleChange}
+                    autoComplete="new-password" minLength={8} maxLength={72} required
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                </div>
+              ))}
             </div>
 
-            {/* Error message */}
             {error && (
               <p className="mt-5 text-sm text-red-600" role="alert">
                 {error}
-              </p>
-            )}
-
-            {/* Success message */}
-            {success && (
-              <p className="mt-5 text-sm text-green-700" role="status">
-                {success}{" "}
-                <Link
-                  to="/login"
-                  className="font-semibold underline hover:text-green-800"
-                >
-                  Log in
-                </Link>
               </p>
             )}
 
@@ -234,6 +178,10 @@ function Register() {
               </Link>
             </p>
           </form>
+          <div className="mt-4"><GoogleSignIn onSuccess={data => {
+            login(data.user, data.token);
+            navigate(state?.returnTo === "/create-event" ? "/create-event" : "/", { replace: true });
+          }} /></div>
         </div>
       </main>
 

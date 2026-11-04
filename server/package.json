@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "require-event-organiser": "node requireEventOrganiser.js",
+    "add-auth-verification": "node addAuthVerification.js",
     "add-event-coordinates": "node addEventCoordinates.js",
     "add-event-locations": "node addEventLocations.js",
     "add-event-pricing": "node addEventPricing.js",
@@ -26,6 +28,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "google-auth-library": "^11.3.3",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0"
   }
