@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import process from "node:process";
-import { eventSchedule, formatEventInstant, eventAvailability } from "../src/eventDisplay.js";
+import { eventSchedule, formatEventInstant, eventAvailability, eventRegistrationLabel } from "../src/eventDisplay.js";
+
+test("full and cancelled events have distinct registration labels", () => {
+  const full = { capacity: 1, attendee_count: 1 };
+  assert.equal(eventRegistrationLabel(full, { registrationOpen: true }), "Full");
+  assert.equal(eventRegistrationLabel(full, { registrationOpen: false }), "Registration closed");
+  assert.equal(eventRegistrationLabel({ ...full, cancelled_at: "2026-11-04T12:00:00Z" },
+    { registrationOpen: false }), "Cancelled");
+});
 
 const event = { title: "Community Market", description: "Local crafts and food", location: "Leeds",
   starts_at: "2028-05-10T09:00:00Z", ends_at: "2028-05-12T11:00:00Z", timezone: "Europe/London",

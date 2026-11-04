@@ -1,4 +1,5 @@
 import pool from "./db.js";
+import { coverPhotoTable } from "./eventCoverPhoto.js";
 
 async function createTables() {
   const client = await pool.connect();
@@ -9,6 +10,7 @@ async function createTables() {
     // WARNING: Development reset.
     // Deletes all users, events, and registrations.
     await client.query(`
+      DROP TABLE IF EXISTS event_cover_photos;
       DROP TABLE IF EXISTS event_attendees CASCADE;
       DROP TABLE IF EXISTS events CASCADE;
       DROP TABLE IF EXISTS users CASCADE;
@@ -121,6 +123,7 @@ async function createTables() {
       );
     `);
 
+    await client.query(coverPhotoTable);
     await client.query("COMMIT");
 
     console.log("Development tables recreated successfully.");

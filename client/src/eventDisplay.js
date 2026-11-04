@@ -34,6 +34,27 @@ export function eventSchedule(event) {
   };
 }
 
+export function eventCardTiming(event) {
+  if (!event.starts_at) return `${legacyDate(event.date)} · ${legacyTime(event.time)}`;
+  const date = new Intl.DateTimeFormat("en-GB", {
+    timeZone: event.timezone, day: "numeric", month: "short", year: "numeric",
+  });
+  const start = new Date(event.starts_at);
+  const end = new Date(event.ends_at);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: event.timezone, hour: "numeric", minute: "2-digit", hour12: true,
+  });
+  const dates = date.format(start) === date.format(end) ? date.format(start) : date.formatRange(start, end);
+  return `${dates} · Starts at ${time.format(start)}`;
+}
+
+export function eventRegistrationLabel(event, availability) {
+  if (event.cancelled_at) return "Cancelled";
+  if (!availability.registrationOpen) return "Registration closed";
+  if (event.capacity != null && Number(event.attendee_count ?? 0) >= event.capacity) return "Full";
+  return "Registration open";
+}
+
 export function eventAvailability(event, now = Date.now()) {
   if (!event) return { lifecycle: null, registrationOpen: false, cancellationOpen: false };
   if (!event.starts_at) {

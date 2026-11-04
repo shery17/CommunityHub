@@ -30,7 +30,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
     await client.query(`SET LOCAL search_path TO "${schema}"`);
     const sql = await readFile(new URL("./schema.sql", import.meta.url), "utf8");
     const tables = [...sql.matchAll(/CREATE TABLE \w+ \([\s\S]*?\n\);/g)];
-    assert.equal(tables.length, 3);
+    assert.equal(tables.length, 4);
     for (const [definition] of tables) await client.query(definition);
 
     // Route transactions become savepoints within the outer test transaction.
@@ -88,7 +88,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
     await t.test("creation requires auth and validates text, timing and zones", async () => {
       const config = await request("GET", "/config");
       assert.equal(config.status, 200);
-      assert.deepEqual(config.body, { multi_day: true, default_timezone: "Europe/London", categories: EVENT_CATEGORIES, pricing: PRICING_CONFIG, structured_location: true, coordinates: true, capacity: true });
+      assert.deepEqual(config.body, { multi_day: true, default_timezone: "Europe/London", categories: EVENT_CATEGORIES, pricing: PRICING_CONFIG, structured_location: true, coordinates: true, capacity: true, coverPhotos: true });
       assert.equal((await request("POST", "", payload, null)).status, 401);
       for (const patch of [
         { title: 123 }, { title: "x".repeat(201) }, { location: "x".repeat(256) },
@@ -980,9 +980,40 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
       }
     });
 
+    await t.test("cover photos are resized, editable only by the organiser and removed with their event", async () => {
+      const { default: sharp } = await import("sharp");
+      const image = await sharp({ create: { width: 1800, height: 1000, channels: 3, background: "blue" } }).png().toBuffer();
+      const replacement = await sharp({ create: { width: 300, height: 200, channels: 3, background: "green" } }).jpeg().toBuffer();
+      const coverPhoto = image.toString("base64");
+      assert.equal((await request("POST", "", { ...payload, coverPhoto: "bm90IGFuIGltYWdl" })).status, 400);
+      const created = await request("POST", "", { ...payload, coverPhoto });
+      assert.equal(created.status, 201, JSON.stringify(created.body));
+      const path = "/" + created.body.id;
+      const photoPath = base + path + "/cover-photo";
+      assert.equal((await request("GET", path)).body.has_cover_photo, true);
+      const original = await fetch(photoPath);
+      assert.equal(original.status, 200);
+      assert.equal(original.headers.get("content-type"), "image/webp");
+      const metadata = await sharp(Buffer.from(await original.arrayBuffer())).metadata();
+      assert.equal(metadata.width, 1400);
+      assert.equal(metadata.format, "webp");
+      assert.equal((await request("PUT", path, { ...payload, coverPhoto: null }, otherToken)).status, 403);
+      assert.equal((await request("PUT", path, payload)).status, 200);
+      assert.equal((await request("GET", path)).body.has_cover_photo, true);
+      assert.equal((await request("PUT", path, { ...payload, coverPhoto: replacement.toString("base64") })).status, 200);
+      const replaced = await fetch(photoPath);
+      assert.equal((await sharp(Buffer.from(await replaced.arrayBuffer())).metadata()).width, 300);
+      assert.equal((await request("PUT", path, { ...payload, coverPhoto: null })).status, 200);
+      assert.equal((await request("GET", path)).body.has_cover_photo, false);
+      assert.equal((await fetch(photoPath)).status, 404);
+      assert.equal((await request("PUT", path, { ...payload, coverPhoto })).status, 200);
+      assert.equal((await request("DELETE", path)).status, 200);
+      assert.equal((await fetch(photoPath)).status, 404);
+    });
+
     await t.test("legacy create and edit still work on the original schema", async () => {
       // This affects only the isolated test schema, never public tables.
-      await client.query("DROP TABLE event_attendees; DROP TABLE events");
+      await client.query("DROP TABLE event_cover_photos; DROP TABLE event_attendees; DROP TABLE events");
       await client.query(`CREATE TABLE events (
         id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, title VARCHAR(200) NOT NULL,
         description TEXT NOT NULL, date DATE NOT NULL, time TIME NOT NULL,
@@ -993,7 +1024,7 @@ test("event routes against PostgreSQL", { skip: process.env.RUN_DB_TESTS !== "1"
         event_id INTEGER REFERENCES events(id), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (user_id, event_id))`);
       const legacy = { title: "Legacy", description: "Original form", date: `${futureYear}-05-10`, time: "10:00", location: "Leeds" };
-      assert.deepEqual((await request("GET", "/config")).body, { multi_day: false, default_timezone: "Europe/London", categories: [], pricing: null, structured_location: false, coordinates: false, capacity: false });
+      assert.deepEqual((await request("GET", "/config")).body, { multi_day: false, default_timezone: "Europe/London", categories: [], pricing: null, structured_location: false, coordinates: false, capacity: false, coverPhotos: false });
       const created = await request("POST", "", legacy);
       assert.equal(created.status, 201);
       assert.equal((await request("PUT", `/${created.body.id}`, { ...legacy, title: "Legacy edited" })).status, 200);

@@ -1,3 +1,5 @@
+import EventCoverPhotoField from "../components/EventCoverPhotoField";
+import { encodeCoverPhoto, coverPhotoUrl } from "../eventCoverPhoto";
 import EventLocationFields from "../components/EventLocationFields";
 
 import { useEffect, useState } from "react";
@@ -23,6 +25,8 @@ function EditEvent() {
   const [pricing, setPricing] = useState(null);
   const [structuredLocation, setStructuredLocation] = useState(false);
   const [capacityEnabled, setCapacityEnabled] = useState(false);
+  const [coverPhotosEnabled, setCoverPhotosEnabled] = useState(false);
+  const [coverPhoto, setCoverPhoto] = useState(undefined);
   const [coordinatesEnabled, setCoordinatesEnabled] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const multiDay = Boolean(existingEvent?.start_date);
@@ -71,6 +75,8 @@ function EditEvent() {
           setStructuredLocation(Boolean(config.structured_location));
           setCoordinatesEnabled(Boolean(config.coordinates));
           setCapacityEnabled(Boolean(config.capacity));
+          setCoverPhotosEnabled(Boolean(config.coverPhotos));
+          setCoverPhoto(undefined);
           setExistingEvent(data);
         }
       } catch (error) {
@@ -123,7 +129,7 @@ function EditEvent() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(buildEventPayload(timingForm, multiDay)),
+          body: JSON.stringify({ ...buildEventPayload(timingForm, multiDay), coverPhoto: await encodeCoverPhoto(coverPhoto) }),
         }
       );
 
@@ -217,6 +223,8 @@ function EditEvent() {
                   />
                 </div>
 
+                {coverPhotosEnabled && <EventCoverPhotoField file={coverPhoto} onChange={setCoverPhoto} disabled={saving}
+                  existingUrl={existingEvent.has_cover_photo ? coverPhotoUrl(id) : undefined} />}
                 <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={saving} />
                 <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={saving} />
                 <EventLocationFields combined form={formData} onChange={handleChange} enabled={structuredLocation}

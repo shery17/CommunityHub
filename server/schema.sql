@@ -3,6 +3,7 @@
 
 BEGIN;
 
+DROP TABLE IF EXISTS event_cover_photos;
 DROP TABLE IF EXISTS event_attendees CASCADE;
 DROP TABLE IF EXISTS events CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
@@ -92,6 +93,11 @@ CREATE TABLE event_attendees (
     event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (user_id, event_id)
+);
+
+CREATE TABLE event_cover_photos (
+    event_id INTEGER PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+    image BYTEA NOT NULL
 );
 
 COMMIT;

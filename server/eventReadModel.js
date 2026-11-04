@@ -14,13 +14,13 @@ const timingFields = active => `${startsAt} AS starts_at, ${endsAt} AS ends_at,
   (${active} AND statement_timestamp() < ${closesAt}) AS registration_open,
   (${active} AND statement_timestamp() < ${endsAt}) AS cancellation_open`;
 
-const multiDay = active => ({
+const multiDay = (active, hasCoverPhotos) => ({
   multiDay: true,
   startsAt,
   endsAt,
   fields: `e.*, to_char(e.start_date, 'YYYY-MM-DD') AS start_date,
     to_char(e.end_date, 'YYYY-MM-DD') AS end_date,
-    ${timingFields(active)}, ${attendeeCount}`,
+    ${timingFields(active)}, ${attendeeCount}${hasCoverPhotos ? ", EXISTS (SELECT 1 FROM event_cover_photos p WHERE p.event_id = e.id) AS has_cover_photo" : ""}`,
   attendanceFields: timingFields(active),
   // Mutation predicates use actual execution time, including after lock waits.
   registrationOpenAtRead: `${active} AND statement_timestamp() < ${closesAt}`,
@@ -77,11 +77,12 @@ export async function getEventReadModel(db) {
   ) AS has_capacity, EXISTS (
     SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('events')
       AND attname = 'cancelled_at' AND NOT attisdropped
-  ) AS has_event_cancellation`);
-  return { ...(result.rows[0].multi_day ? multiDay(result.rows[0].has_event_cancellation ? "e.cancelled_at IS NULL" : "TRUE") : legacy), hasCategory: result.rows[0].has_category,
+  ) AS has_event_cancellation, to_regclass('event_cover_photos') IS NOT NULL AS has_cover_photos`);
+  return { ...(result.rows[0].multi_day ? multiDay(result.rows[0].has_event_cancellation ? "e.cancelled_at IS NULL" : "TRUE", result.rows[0].has_cover_photos) : legacy), hasCategory: result.rows[0].has_category,
     hasPricing: result.rows[0].has_pricing, hasStructuredLocation: result.rows[0].has_structured_location,
     hasEventCancellation: result.rows[0].multi_day && result.rows[0].has_event_cancellation,
     hasSpace: result.rows[0].has_capacity ? `(e.capacity IS NULL OR ${countAttendees} < e.capacity)` : "TRUE",
+    hasCoverPhotos: result.rows[0].multi_day && result.rows[0].has_cover_photos,
     hasCapacity: result.rows[0].has_capacity,
     hasCoordinates: result.rows[0].has_structured_location && result.rows[0].has_coordinates };
 }

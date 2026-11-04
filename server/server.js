@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import pool from "./db.js";
 import auth from "./auth.js";
+import { prepareCoverPhoto } from "./eventCoverPhoto.js";
 import requireAuth from "./middleware/requireAuth.js";
 import { getEventReadModel } from "./eventReadModel.js";
 import { EVENT_CATEGORIES } from "./eventCategories.js";
@@ -21,7 +22,16 @@ const app = express();
 const findPlaces = createGeocoder();
 
 app.use(cors());
-app.use(express.json());
+const json = express.json();
+const eventJson = express.json({ limit: "6mb" });
+app.use((req, res, next) => {
+  const eventWrite = (req.method === "POST" && /^\/api\/events\/?$/i.test(req.path))
+    || (req.method === "PUT" && /^\/api\/events\/[^/]+\/?$/i.test(req.path));
+  return (eventWrite ? eventJson : json)(req, res, error => {
+    if (error?.type === "entity.too.large") return res.status(413).json({ message: "This request is too large. Cover photos must be 4 MB or smaller." });
+    next(error);
+  });
+});
 app.use("/api/auth", auth);
 
 // Keep the existing forms working until the database and frontend transition.
@@ -75,9 +85,12 @@ async function createMultiDayEvent(req, res) {
   let locationDetails;
   let coordinates;
   let capacity;
+  let coverPhoto;
   const model = await getEventReadModel(pool);
   try {
     timing = validateNewEventTiming(req.body);
+    if (req.body.coverPhoto != null && !model.hasCoverPhotos) throw new Error("Cover photo uploads are unavailable.");
+    coverPhoto = await prepareCoverPhoto(req.body.coverPhoto);
     pricing = eventPricing(req.body);
     capacity = eventCapacity(req.body);
     if (!model.hasCapacity && capacity !== null) throw new Error("Install the capacity schema update first.");
@@ -91,16 +104,19 @@ async function createMultiDayEvent(req, res) {
     return res.status(400).json({ message: error.message });
   }
   const capacityParameter = 16 + (model.hasStructuredLocation ? 4 : 0) + (model.hasCoordinates ? 3 : 0);
-  const result = await pool.query(
-    `INSERT INTO events
+  const insert = `INSERT INTO events
       (title, description, start_date, start_time, start_offset,
        end_date, end_time, end_offset, timezone, registration_deadline, location, created_by, category, price, currency${model.hasStructuredLocation ? ", address, city, postcode, country" : ""}${model.hasCoordinates ? ", latitude, longitude, place_label" : ""}${model.hasCapacity ? ", capacity" : ""})
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15${model.hasStructuredLocation ? ", $16, $17, $18, $19" : ""}${model.hasCoordinates ? ", $20, $21, $22" : ""}${model.hasCapacity ? `, $${capacityParameter}` : ""})
      RETURNING *, to_char(start_date, 'YYYY-MM-DD') AS start_date,
-       to_char(end_date, 'YYYY-MM-DD') AS end_date`,
-    [...eventWriteValues(req.body, timing), req.user.userId, req.body.category ?? null, pricing.price, pricing.currency,
-      ...(model.hasStructuredLocation ? Object.values(locationDetails) : []), ...(model.hasCoordinates ? Object.values(coordinates) : []), ...(model.hasCapacity ? [capacity] : [])]
-  );
+       to_char(end_date, 'YYYY-MM-DD') AS end_date`;
+  const values = [...eventWriteValues(req.body, timing), req.user.userId, req.body.category ?? null, pricing.price, pricing.currency,
+      ...(model.hasStructuredLocation ? Object.values(locationDetails) : []), ...(model.hasCoordinates ? Object.values(coordinates) : []), ...(model.hasCapacity ? [capacity] : [])];
+  const result = coverPhoto
+    ? await pool.query(`WITH created AS (${insert}), photo AS (
+        INSERT INTO event_cover_photos (event_id, image) SELECT id, $${values.length + 1}::bytea FROM created
+      ) SELECT * FROM created`, [...values, coverPhoto])
+    : await pool.query(insert, values);
   return res.status(201).json(eventWriteResponse(result.rows[0], timing, 0));
 }
 
@@ -130,9 +146,14 @@ async function editMultiDayEvent(req, res) {
     let locationDetails;
     let coordinates;
     let capacity;
+    let coverPhoto;
     const hasCapacity = Object.hasOwn(existing, "capacity");
     try {
       if (fieldError) throw new Error(fieldError);
+      if (Object.hasOwn(req.body, "coverPhoto")) {
+        if (!(await getEventReadModel(client)).hasCoverPhotos) throw new Error("Cover photo uploads are unavailable.");
+        coverPhoto = await prepareCoverPhoto(req.body.coverPhoto);
+      }
       pricing = eventPricing(req.body, existing);
       capacity = eventCapacity(req.body, existing.capacity ?? null);
       if (!hasCapacity && capacity !== null) throw new Error("Install the capacity schema update first.");
@@ -172,6 +193,12 @@ async function editMultiDayEvent(req, res) {
         Object.hasOwn(req.body, "category") ? req.body.category : existing.category ?? null, pricing.price, pricing.currency,
         ...(hasStructuredLocation ? Object.values(locationDetails) : []), ...(hasCoordinates ? Object.values(coordinates) : []), ...(hasCapacity ? [capacity] : [])]
     );
+    if (coverPhoto === null) {
+      await client.query("DELETE FROM event_cover_photos WHERE event_id = $1", [req.params.id]);
+    } else if (coverPhoto) {
+      await client.query(`INSERT INTO event_cover_photos (event_id, image) VALUES ($1, $2)
+        ON CONFLICT (event_id) DO UPDATE SET image = EXCLUDED.image`, [req.params.id, coverPhoto]);
+    }
     await client.query("COMMIT");
     return res.json(eventWriteResponse(result.rows[0], timing, count.rows[0].attendee_count));
   } catch (error) {
@@ -383,7 +410,7 @@ app.get("/api/events/config", async (req, res) => {
   try {
     const model = await getEventReadModel(pool);
     return res.json({ multi_day: model.multiDay, default_timezone: "Europe/London",
-      categories: model.hasCategory ? EVENT_CATEGORIES : [], pricing: model.hasPricing ? PRICING_CONFIG : null, structured_location: model.hasStructuredLocation, coordinates: model.hasCoordinates, capacity: model.hasCapacity });
+      categories: model.hasCategory ? EVENT_CATEGORIES : [], pricing: model.hasPricing ? PRICING_CONFIG : null, structured_location: model.hasStructuredLocation, coordinates: model.hasCoordinates, capacity: model.hasCapacity, coverPhotos: model.hasCoverPhotos });
   } catch (error) {
     console.error("Error loading event configuration:", error);
     return res.status(500).json({ message: "Unable to load the event form. Please try again." });
@@ -391,6 +418,17 @@ app.get("/api/events/config", async (req, res) => {
 });
 
 // Get an individual event.
+app.get("/api/events/:id/cover-photo", async (req, res) => {
+  const { id } = req.params;
+  if (!/^[1-9]\d*$/.test(id) || Number(id) > 2147483647) return res.sendStatus(404);
+  if (!(await getEventReadModel(pool)).hasCoverPhotos) return res.sendStatus(404);
+  const result = await pool.query("SELECT image FROM event_cover_photos WHERE event_id = $1", [id]);
+  if (!result.rowCount) return res.sendStatus(404);
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("Cache-Control", "public, max-age=0, must-revalidate");
+  return res.type("image/webp").send(result.rows[0].image);
+});
+
 app.get("/api/events/:id", async (req, res) => {
   try {
     const { id } = req.params;

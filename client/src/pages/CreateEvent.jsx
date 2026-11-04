@@ -1,3 +1,5 @@
+import EventCoverPhotoField from "../components/EventCoverPhotoField";
+import { encodeCoverPhoto } from "../eventCoverPhoto";
 import EventLocationFields from "../components/EventLocationFields";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +21,8 @@ function CreateEvent() {
   const [pricing, setPricing] = useState(null);
   const [structuredLocation, setStructuredLocation] = useState(false);
   const [capacityEnabled, setCapacityEnabled] = useState(false);
+  const [coverPhotosEnabled, setCoverPhotosEnabled] = useState(false);
+  const [coverPhoto, setCoverPhoto] = useState(undefined);
   const [coordinatesEnabled, setCoordinatesEnabled] = useState(false);
   const [configError, setConfigError] = useState("");
 
@@ -41,6 +45,7 @@ function CreateEvent() {
           setStructuredLocation(Boolean(data.structured_location));
           setCoordinatesEnabled(Boolean(data.coordinates));
           setCapacityEnabled(Boolean(data.capacity));
+          setCoverPhotosEnabled(Boolean(data.coverPhotos));
         }
       } catch (error) {
         if (!cancelled) setConfigError(error.message || "Unable to load the event form.");
@@ -79,7 +84,7 @@ function CreateEvent() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(buildEventPayload(timingForm, multiDay, { creating: true })),
+        body: JSON.stringify({ ...buildEventPayload(timingForm, multiDay, { creating: true }), coverPhoto: await encodeCoverPhoto(coverPhoto) }),
       });
 
       const data = await response.json();
@@ -168,6 +173,7 @@ function CreateEvent() {
                 />
               </div>
 
+              {coverPhotosEnabled && <EventCoverPhotoField file={coverPhoto} onChange={setCoverPhoto} disabled={loading} />}
               <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={loading} />
               <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={loading} />
               <EventLocationFields combined form={formData} onChange={handleChange} enabled={structuredLocation}

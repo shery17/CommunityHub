@@ -5,9 +5,25 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import GoogleSignIn from "../components/GoogleSignIn";
 import { useAuth } from "../context/AuthContext";
-import EventSchedule from "../components/EventSchedule";
-import { eventAvailability } from "../eventDisplay";
+import { coverPhotoUrl } from "../eventCoverPhoto";
+import { eventAvailability, eventCardTiming, eventRegistrationLabel } from "../eventDisplay";
 import useEventClock from "../useEventClock";
+
+function ProfileEventSummary({ event, now }) {
+  const status = eventRegistrationLabel(event, eventAvailability(event, now));
+  return (
+    <div className="flex items-start gap-4">
+      {event.has_cover_photo && <img src={coverPhotoUrl(event.id)} alt="" loading="lazy" decoding="async"
+        className="h-16 w-20 shrink-0 rounded-lg object-cover" />}
+      <div className="min-w-0">
+        <h3 className="break-words text-lg font-bold text-gray-900">{event.title}</h3>
+        <p className="mt-1 text-sm text-gray-700">{eventCardTiming(event)}</p>
+        <p className="break-words text-sm text-gray-700">{event.location}</p>
+        {status !== "Registration open" && <p className="mt-2 inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800">{status}</p>}
+      </div>
+    </div>
+  );
+}
 
 function Profile() {
   const { user, logout, login } = useAuth();
@@ -323,11 +339,7 @@ function Profile() {
                     key={event.id}
                     className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
                   >
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {event.title}
-                    </h3>
-
-                    <EventSchedule event={event} now={currentTime} />
+                    <ProfileEventSummary event={event} now={currentTime} />
 
                     <div className="mt-5 flex flex-wrap items-center gap-4">
                       <Link
@@ -404,11 +416,7 @@ function Profile() {
                       key={event.id}
                       className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
                     >
-                      <h3 className="text-xl font-bold text-gray-900">
-                        {event.title}
-                      </h3>
-
-                      <EventSchedule event={event} now={currentTime} />
+                      <ProfileEventSummary event={event} now={currentTime} />
 
                       <div className="mt-5 flex flex-wrap items-center gap-4">
                         <Link

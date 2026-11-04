@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "add-event-cover-photos": "node addEventCoverPhotos.js",
     "require-event-organiser": "node requireEventOrganiser.js",
     "add-auth-verification": "node addAuthVerification.js",
     "add-event-coordinates": "node addEventCoordinates.js",
@@ -30,6 +31,7 @@
     "express": "^5.2.1",
     "google-auth-library": "^11.3.3",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "sharp": "^0.35.5"
   }
 }

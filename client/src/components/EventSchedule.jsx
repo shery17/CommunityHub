@@ -1,11 +1,11 @@
-import { eventSchedule, eventAvailability } from "../eventDisplay";
+import { eventSchedule, eventAvailability, eventRegistrationLabel } from "../eventDisplay";
 import { formatEventPrice } from "../eventPricing";
 
 export default function EventSchedule({ event, now, showDeadline = true }) {
   const schedule = eventSchedule(event);
   const availability = eventAvailability(event, now);
   const count = Number(event.attendee_count ?? 0);
-  const full = event.capacity != null && count >= event.capacity;
+  const registrationLabel = eventRegistrationLabel(event, availability);
   return (
     <div className="mt-4 space-y-2 text-sm text-gray-600">
       {event.category && <p><strong>Category:</strong> {event.category}</p>}
@@ -31,8 +31,8 @@ export default function EventSchedule({ event, now, showDeadline = true }) {
         {availability.lifecycle && !event.cancelled_at && <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-800">
           {{ upcoming: "Upcoming", ongoing: "Ongoing", past: "Past" }[availability.lifecycle]}
         </span>}
-        <span className={`rounded-full px-3 py-1 font-semibold ${availability.registrationOpen && !full ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-700"}`}>
-          {availability.registrationOpen ? "Registration open" : availability.registrationOpen && full ? "Event full" : "Registration closed"}
+        <span className={`rounded-full px-3 py-1 font-semibold ${registrationLabel === "Registration open" ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-700"}`}>
+          {registrationLabel}
         </span>
       </div>
     </div>

@@ -4,6 +4,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
 import EventAttendees from "../components/EventAttendees";
+import { coverPhotoUrl } from "../eventCoverPhoto";
 import EventSchedule from "../components/EventSchedule";
 import { eventAvailability } from "../eventDisplay";
 import useEventClock from "../useEventClock";
@@ -340,11 +341,8 @@ function EventDetails() {
 
           {!loading && !error && event && (
             <article className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div className="flex h-48 items-center justify-center bg-blue-50 sm:h-64">
-                <span className="text-6xl" aria-hidden="true">
-                  📅
-                </span>
-              </div>
+              {event.has_cover_photo && <img src={coverPhotoUrl(event.id)} alt="" decoding="async"
+                className="max-h-[32rem] w-full bg-gray-50 object-contain" />}
 
               <div className="p-6 sm:p-10">
                 <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">

@@ -292,3 +292,12 @@ Repeat cancellation requests retain the original timestamp.
 
 Run npm run add-event-cancellation from server to add the cancellation timestamp
 to an existing multi-day schema without resetting data.
+
+## Event cover photos
+
+Organisers can add one optional JPEG, PNG or WebP cover photo up to 4 MB.
+The server checks and resizes uploads to WebP and stores them with the event.
+Deleting an event removes its cover photo.
+
+For an existing database, run npm run add-event-cover-photos from server.
+Fresh databases include the photo table.
