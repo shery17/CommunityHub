@@ -16,6 +16,8 @@ function EditEvent() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({ ...emptyEventForm });
+  const [differentEndDay, setDifferentEndDay] = useState(false);
+  const timingForm = differentEndDay ? formData : { ...formData, end_date: formData.start_date };
   const [existingEvent, setExistingEvent] = useState(null);
   const [categories, setCategories] = useState([]);
   const [pricing, setPricing] = useState(null);
@@ -61,7 +63,9 @@ function EditEvent() {
             return;
           }
 
-          setFormData(eventToForm(data));
+          const savedForm = eventToForm(data);
+          setFormData(savedForm);
+          setDifferentEndDay(savedForm.start_date !== savedForm.end_date);
           setCategories(config.categories ?? []);
           setPricing(config.pricing ?? null);
           setStructuredLocation(Boolean(config.structured_location));
@@ -90,7 +94,10 @@ function EditEvent() {
   function handleChange(event) {
     const { name, value } = event.target;
 
-    setFormData(previous => changeEventForm(previous, name, value));
+    setFormData(previous => {
+      const next = changeEventForm(previous, name, value);
+      return name === "start_date" && !differentEndDay ? { ...next, end_offset: "" } : next;
+    });
   }
 
   async function handleSubmit(event) {
@@ -116,7 +123,7 @@ function EditEvent() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(buildEventPayload(formData, multiDay)),
+          body: JSON.stringify(buildEventPayload(timingForm, multiDay)),
         }
       );
 
@@ -212,35 +219,21 @@ function EditEvent() {
 
                 <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={saving} />
                 <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={saving} />
-                {capacityEnabled && <div>
+                <EventLocationFields combined form={formData} onChange={handleChange} enabled={structuredLocation}
+                  coordinatesEnabled={coordinatesEnabled} disabled={saving}
+                  onSelectPlace={place => setFormData(previous => ({ ...previous, ...place }))} />
+                <EventTimingFields compact form={timingForm} onChange={handleChange} multiDay={multiDay} locks={locks} disabled={saving}
+                  differentEndDay={differentEndDay} onDifferentEndDayChange={checked => {
+                    setDifferentEndDay(checked);
+                    setFormData(previous => ({ ...previous, end_date: previous.start_date, end_offset: "" }));
+                  }}
+                  registrationOptions={capacityEnabled && <div>
                   <label htmlFor="capacity" className="block text-sm font-semibold">Attendee limit (optional)</label>
                   <input id="capacity" name="capacity" type="number" min={1} max={2147483647} step={1}
                     value={formData.capacity ?? ""} onChange={handleChange}
                     className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3" />
                   <p className="mt-1 text-sm text-gray-600">Leave blank for unlimited attendance.</p>
-                </div>}
-                <EventTimingFields form={formData} onChange={handleChange} multiDay={multiDay} locks={locks} disabled={saving} />
-
-                <div>
-                  <label
-                    htmlFor="location"
-                    className="mb-2 block text-sm font-semibold text-gray-700"
-                  >
-                    Location
-                  </label>
-                  <input
-                    id="location"
-                    name="location"
-                    type="text"
-                    required
-                    maxLength={255}
-                    value={formData.location}
-                    onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <EventLocationFields coordinatesEnabled={coordinatesEnabled} onSelectPlace={place=>setFormData(previous=>({...previous,...place}))} form={formData} onChange={handleChange} enabled={structuredLocation} disabled={saving} />
+                </div>} />
 
                 {error && (
                   <p className="text-sm text-red-600" role="alert">

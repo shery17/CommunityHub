@@ -50,9 +50,9 @@ function Header() {
               Events
             </Link>
 
-            <Link to="/create-event" className={linkClass}>
+            {user && <Link to="/create-event" className={linkClass}>
               Create Event
-            </Link>
+            </Link>}
 
             {user ? (
               <>
@@ -153,13 +153,13 @@ function Header() {
                 Events
               </Link>
 
-              <Link
+              {user && <Link
                 to="/create-event"
                 className={mobileLinkClass}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Create Event
-              </Link>
+              </Link>}
 
               {user ? (
                 <>

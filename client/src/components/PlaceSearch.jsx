@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function PlaceSearch({ id, label, onSelect, disabled, value, onQueryChange, lookupEnabled = true, lookupLabel = "Find places", placeholder = "e.g. Leeds, United Kingdom" }) {
+export default function PlaceSearch({ id, label, onSelect, disabled, value, onQueryChange, required = false, lookupEnabled = true, lookupLabel = "Find places", placeholder = "e.g. Leeds, United Kingdom" }) {
   const [draft,setQuery]=useState("");
   const query = value ?? draft;
   const [places,setPlaces]=useState([]);
@@ -24,10 +24,10 @@ export default function PlaceSearch({ id, label, onSelect, disabled, value, onQu
   return <div className="space-y-3">
     <label htmlFor={id} className="block text-sm font-semibold text-gray-900">{label}</label>
     <div className="flex gap-2">
-      <input id={id} type="search" maxLength={255} value={query} disabled={disabled}
+      <input id={id} type="search" maxLength={255} value={query} disabled={disabled} required={required}
         placeholder={placeholder} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2"
         onChange={event=> { request.current?.abort(); setLoading(false); setQuery(event.target.value); onQueryChange?.(event.target.value); setPlaces([]); setError(""); setSearched(false); }}
-        onKeyDown={event=> { if (event.key==="Enter") { event.preventDefault(); if (lookupEnabled && !disabled && !loading && query.trim().length>=2) search(); } }} />
+        onKeyDown={event=> { if (event.key==="Enter" && lookupEnabled) { event.preventDefault(); if (lookupEnabled && !disabled && !loading && query.trim().length>=2) search(); } }} />
       {lookupEnabled && <button type="button" onClick={search} disabled={disabled || loading || query.trim().length<2}
         className="rounded-lg border border-blue-600 px-3 py-2 text-blue-700 disabled:opacity-50">{loading ? "Finding…" : lookupLabel}</button>}
     </div>

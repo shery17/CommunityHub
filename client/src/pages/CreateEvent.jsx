@@ -12,6 +12,8 @@ function CreateEvent() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({ ...emptyEventForm });
+  const [differentEndDay, setDifferentEndDay] = useState(false);
+  const timingForm = differentEndDay ? formData : { ...formData, end_date: formData.start_date };
   const [multiDay, setMultiDay] = useState(null);
   const [categories, setCategories] = useState([]);
   const [pricing, setPricing] = useState(null);
@@ -51,7 +53,10 @@ function CreateEvent() {
   function handleChange(event) {
     const { name, value } = event.target;
 
-    setFormData(previous => changeEventForm(previous, name, value));
+    setFormData(previous => {
+      const next = changeEventForm(previous, name, value);
+      return name === "start_date" && !differentEndDay ? { ...next, end_offset: "" } : next;
+    });
   }
 
   async function handleSubmit(event) {
@@ -74,7 +79,7 @@ function CreateEvent() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(buildEventPayload(formData, multiDay, { creating: true })),
+        body: JSON.stringify(buildEventPayload(timingForm, multiDay, { creating: true })),
       });
 
       const data = await response.json();
@@ -165,40 +170,21 @@ function CreateEvent() {
 
               <EventCategoryField value={formData.category} categories={categories} onChange={handleChange} disabled={loading} />
               <EventPricingFields form={formData} config={pricing} onChange={handleChange} disabled={loading} />
-              {capacityEnabled && <div>
+              <EventLocationFields combined form={formData} onChange={handleChange} enabled={structuredLocation}
+                coordinatesEnabled={coordinatesEnabled} disabled={loading}
+                onSelectPlace={place => setFormData(previous => ({ ...previous, ...place }))} />
+              <EventTimingFields compact form={timingForm} onChange={handleChange} multiDay={multiDay} disabled={loading}
+                differentEndDay={differentEndDay} onDifferentEndDayChange={checked => {
+                  setDifferentEndDay(checked);
+                  setFormData(previous => ({ ...previous, end_date: previous.start_date, end_offset: "" }));
+                }}
+                registrationOptions={capacityEnabled && <div>
                 <label htmlFor="capacity" className="block text-sm font-semibold">Attendee limit (optional)</label>
                 <input id="capacity" name="capacity" type="number" min={1} max={2147483647} step={1}
                   value={formData.capacity ?? ""} onChange={handleChange}
                   className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3" />
                 <p className="mt-1 text-sm text-gray-600">Leave blank for unlimited attendance.</p>
-              </div>}
-              <EventTimingFields form={formData} onChange={handleChange} multiDay={multiDay} disabled={loading} />
-
-              {/* Location */}
-              <div>
-                <label
-                  htmlFor="location"
-                  className="block text-sm font-semibold text-gray-900"
-                >
-                  Location
-                </label>
-
-                <input
-                  id="location"
-                  name="location"
-                  type="text"
-                  value={formData.location}
-                  onChange={handleChange}
-                  placeholder="e.g. Leeds City Centre"
-                  maxLength={255}
-                  required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <EventLocationFields coordinatesEnabled={coordinatesEnabled} onSelectPlace={place=>setFormData(previous=>({...previous,...place}))} form={formData} onChange={handleChange} enabled={structuredLocation} disabled={loading} />
+              </div>} />
             </div>
 
             {/* Error message */}
