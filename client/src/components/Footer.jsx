@@ -67,6 +67,20 @@ function Footer() {
           <p className="text-sm text-gray-500">
             © 2026 CommunityHub. All rights reserved.
           </p>
+          <p className="mt-2 text-sm text-gray-300">
+            Location data ©{" "}
+            <a href="https://www.openstreetmap.org/copyright" className="underline hover:text-white">
+              OpenStreetMap contributors
+            </a>
+          </p>
+          <details className="mt-2 max-w-lg text-sm text-gray-300">
+            <summary className="cursor-pointer">Place search privacy</summary>
+            <p className="mt-2">
+              When you look up a place, CommunityHub sends your search text to{" "}
+              <a href="https://photon.komoot.io/" className="underline hover:text-white">Photon</a>.
+              Use a public venue or place name.
+            </p>
+          </details>
         </div>
 
       </div>

@@ -1,3 +1,5 @@
+export const clearOrigin = { origin_lat: "", origin_lon: "", origin_label: "", radius: "" };
+
 const defaults = { q: "", location: "", date: "", category: "", pricing: "all", availability: "all", status: "upcoming", page: "1", page_size: "12" };
 
 export function readEventListParams(params) {

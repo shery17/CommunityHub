@@ -7,7 +7,7 @@ import EventCard from "../components/EventCard";
 import Footer from "../components/Footer";
 import { eventAvailability } from "../eventDisplay";
 import useEventClock from "../useEventClock";
-import { readEventListParams, changeEventListParams } from "../eventListParams";
+import { readEventListParams, changeEventListParams, clearOrigin } from "../eventListParams";
 
 function Events() {
   const [events, setEvents] = useState([]);
@@ -83,6 +83,23 @@ function Events() {
     return lifecycle ? status === "all" || lifecycle === status : status !== "upcoming" || availability.registrationOpen;
   });
 
+  const origin = searchParams.get("origin_label");
+  const hasOrigin = searchParams.has("origin_lat") || searchParams.has("origin_lon");
+  const radius = searchParams.get("radius") ?? "10";
+  const chips = [
+    searchTerm && { label: `Keyword: ${searchTerm}`, reset: { q: "" } },
+    location && { label: `Location: ${location}`, reset: { location: "" } },
+    (hasOrigin || searchParams.has("radius") || origin) && {
+      label: `Near ${origin || "selected place"} · ${radius === "all" ? "Any distance" : radius + " miles"}`,
+      reset: clearOrigin,
+    },
+    selectedDate && { label: `Date: ${selectedDate}`, reset: { date: "" } },
+    category && { label: category, reset: { category: "" } },
+    pricing !== "all" && { label: pricing === "free" ? "Free" : "Paid", reset: { pricing: "all" } },
+    availability !== "all" && { label: "Open with space", reset: { availability: "all" } },
+    status !== "upcoming" && { label: { all: "All events", ongoing: "Ongoing", past: "Past" }[status] ?? status, reset: { status: "upcoming" } },
+  ].filter(Boolean);
+
   const hasActiveFilters = queryString !== "";
   const outOfRange = pagination && pagination.total > 0 && pagination.page > pagination.total_pages;
   const sizeOptions = [...new Set([3, 12, 24, 48,
@@ -124,13 +141,13 @@ function Events() {
         <section className="bg-white py-16">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-10">
-                <div className="grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <div className="grid max-w-6xl items-start gap-5 md:grid-cols-3">
                   <div>
                     <label
                       htmlFor="event-search"
                       className="mb-2 block text-sm font-semibold text-gray-700"
                     >
-                      Keyword
+                      Search events
                     </label>
 
                     <input
@@ -141,24 +158,19 @@ function Events() {
                       onChange={(event) =>
                         changeFilters({ q: event.target.value }, true)
                       }
-                      placeholder="Search title or description..."
+                      placeholder="e.g. yoga, gardening, live music"
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="event-location" className="mb-2 block text-sm font-semibold text-gray-700">Location or city</label>
-                    <input id="event-location" type="search" value={location} maxLength={255}
-                      onChange={event => changeFilters({ location: event.target.value }, true)} placeholder="e.g. Leeds"
-                      className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                  </div>
+                  <EventRadiusFilter params={searchParams} location={location} lookupEnabled={coordinatesEnabled} onChange={changeFilters} />
 
                   <div>
                     <label
                       htmlFor="event-date"
                       className="mb-2 block text-sm font-semibold text-gray-700"
                     >
-                      Date (event local time)
+                      Event date
                     </label>
 
                     <input
@@ -171,6 +183,11 @@ function Events() {
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
+                </div>
+
+                <details className="mt-4 rounded-lg border border-gray-200 p-4">
+                  <summary className="cursor-pointer font-semibold text-gray-900">More filters</summary>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <label htmlFor="event-status" className="mb-2 block text-sm font-semibold text-gray-700">Event status</label>
                     <select id="event-status" value={status} onChange={event => changeFilters({ status: event.target.value })}
@@ -203,30 +220,19 @@ function Events() {
                       <option value="all">All prices</option><option value="free">Free</option><option value="paid">Paid</option>
                     </select>
                   </div>}
-                </div>
+                  </div>
+                </details>
 
-                {coordinatesEnabled && <EventRadiusFilter params={searchParams} onChange={changeFilters} />}
+                {chips.length > 0 && <ul aria-label="Active filters" className="mt-4 flex flex-wrap gap-2">
+                  {chips.map(({ label, reset }) => <li key={Object.keys(reset)[0]} className="min-w-0 max-w-full">
+                    <button type="button" onClick={() => changeFilters(reset)} aria-label={`Remove filter: ${label}`}
+                      className="max-w-full break-words rounded-full bg-blue-50 px-3 py-1 text-left text-sm font-medium text-blue-800 hover:bg-blue-100">
+                      {label} <span aria-hidden="true">×</span>
+                    </button>
+                  </li>)}
+                </ul>}
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <p
-                    className="text-sm text-gray-500"
-                    role="status"
-                  >
-                    {!isLoading && !error && pagination ? <>{pagination.total}{" "}
-                    {pagination.total === 1
-                      ? "event"
-                      : "events"}{" "}
-                    found</> : ""}
-                  </p>
-
-                  <div className="flex items-center gap-3">
-                    <label htmlFor="event-page-size" className="text-sm font-semibold text-gray-700">Events per page</label>
-                    <select id="event-page-size" value={pageSize} onChange={event => changeFilters({ page_size: event.target.value })}
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                      {sizeOptions.map(size => <option key={size} value={size}>{size}</option>)}
-                    </select>
-                  </div>
-
                   {hasActiveFilters && (
                     <button
                       type="button"
@@ -288,6 +294,29 @@ function Events() {
                 {visibleEvents.map((event) => (
                   <EventCard key={event.id} event={event} now={now} />
                 ))}
+              </div>
+            )}
+
+            {!isLoading && !error && pagination && (
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                <p
+                  className="text-sm text-gray-500"
+                  role="status"
+                >
+                  {!isLoading && !error && pagination ? <>{pagination.total}{" "}
+                  {pagination.total === 1
+                    ? "event"
+                    : "events"}{" "}
+                  found</> : ""}
+                </p>
+
+                <div className="flex items-center gap-3">
+                  <label htmlFor="event-page-size" className="text-sm font-semibold text-gray-700">Events per page</label>
+                  <select id="event-page-size" value={pageSize} onChange={event => changeFilters({ page_size: event.target.value })}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    {sizeOptions.map(size => <option key={size} value={size}>{size}</option>)}
+                  </select>
+                </div>
               </div>
             )}
 

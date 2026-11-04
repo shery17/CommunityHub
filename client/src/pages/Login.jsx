@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
 
 function Login() {
   const navigate = useNavigate();
+  const { state } = useLocation();
   const { login } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -51,7 +52,7 @@ function Login() {
 
       login(data.user, data.token);
 
-      navigate("/");
+      navigate(state?.returnTo === "/create-event" ? "/create-event" : "/", { replace: true });
     } catch (error) {
       console.error("Login error:", error);
       setError(error.message || "Something went wrong. Please try again.");
