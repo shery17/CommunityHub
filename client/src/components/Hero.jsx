@@ -1,33 +1,27 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import marketPhoto from "../assets/community-market.webp";
 
-function Hero() {
+export default function Hero() {
   const { user } = useAuth();
 
   return (
-    <section className="bg-gray-50">
-      <div className="mx-auto max-w-3xl px-6 py-12 text-center sm:py-24">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+    <section className="mx-auto grid max-w-[1440px] items-center gap-8 px-5 py-8 sm:px-8 md:grid-cols-[0.9fr_1.1fr] md:gap-12 md:py-14 lg:px-12">
+      <div className="max-w-lg">
+        <h1 className="text-4xl leading-[1.07] font-semibold tracking-[-0.045em] text-stone-950 sm:text-5xl lg:text-6xl">
           Find something to do near you
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg leading-relaxed text-gray-600">
+        <p className="mt-5 max-w-md text-base leading-7 text-stone-600 sm:text-lg">
           Discover local events, sign up to take part, or bring people together by hosting your own.
         </p>
-        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link to="/events" className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">
-            Browse events
-          </Link>
-          <Link
-            to={user ? "/create-event" : "/login"}
-            state={user ? undefined : { returnTo: "/create-event" }}
-            className="rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-900 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
-          >
-            Create an event
-          </Link>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link to="/events" className="primary-action">Browse events</Link>
+          <Link to={user ? "/create-event" : "/login"} state={user ? undefined : { returnTo: "/create-event" }}
+            className="secondary-action">Create an event</Link>
         </div>
       </div>
+      <img src={marketPhoto} alt="Neighbours browsing an outdoor market" width="1440" height="960"
+        className="aspect-[4/3] w-full rounded-2xl object-cover sm:rounded-3xl" />
     </section>
   );
 }
-
-export default Hero;

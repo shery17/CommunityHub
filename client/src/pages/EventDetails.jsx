@@ -309,13 +309,13 @@ function EventDetails() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-gray-50 py-12 sm:py-16">
-        <div className="mx-auto max-w-4xl px-6">
+      <main className="bg-white py-8 sm:py-12">
+        <div className="mx-auto max-w-6xl px-5 sm:px-8">
           <Link
             to="/events"
-            className="inline-block text-sm font-semibold text-blue-600 hover:text-blue-800"
+            className="inline-block text-sm font-semibold text-brand-600 hover:text-brand-800"
           >
-            ← Back to Events
+            ← Browse events
           </Link>
 
           {loading && (
@@ -332,7 +332,7 @@ function EventDetails() {
 
               <Link
                 to="/events"
-                className="mt-4 inline-block font-semibold text-blue-600 hover:text-blue-800"
+                className="mt-4 inline-block font-semibold text-brand-600 hover:text-brand-800"
               >
                 Browse all events
               </Link>
@@ -340,23 +340,20 @@ function EventDetails() {
           )}
 
           {!loading && !error && event && (
-            <article className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <article className="mt-6">
+              <h1 className="break-words text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">{event.title}</h1>
+              <p className="mt-2 break-words text-stone-600">{event.location}</p>
               {event.has_cover_photo && <img src={coverPhotoUrl(event.id)} alt="" decoding="async"
-                className="max-h-[32rem] w-full bg-gray-50 object-contain" />}
+                className="mt-6 aspect-[16/9] max-h-[30rem] w-full rounded-2xl object-cover" />}
 
-              <div className="p-6 sm:p-10">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                  {event.title}
-                </h1>
-
-                <EventSchedule event={displayEvent} now={currentTime} />
-
-                <div className="mt-8 border-t border-gray-200 pt-6">
+              <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)] lg:gap-12">
+                <div className="min-w-0">
+                <div className="border-b border-stone-200 pb-6">
                   <h2 className="text-xl font-bold text-gray-900">
-                    About This Event
+                    About this event
                   </h2>
 
-                  <p className="mt-3 leading-7 text-gray-600">
+                  <p className="mt-3 whitespace-pre-wrap break-words leading-7 text-stone-700">
                     {event.description}
                   </p>
                 </div>
@@ -370,7 +367,7 @@ function EventDetails() {
                     <div className="mt-4 flex flex-wrap gap-3">
                       <Link
                         to={`/events/${event.id}/edit`}
-                        className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
+                        className="rounded-lg bg-brand-600 px-5 py-2.5 font-semibold text-white hover:bg-brand-700"
                       >
                         Edit Event
                       </Link>
@@ -401,9 +398,14 @@ function EventDetails() {
                   </div>
                 )}
 
-                <div className="mt-8 border-t border-gray-200 pt-6">
+                  <section className="mt-6" aria-labelledby="event-information-heading">
+                    <h2 id="event-information-heading" className="text-xl font-semibold text-stone-950">Event information</h2>
+                    <EventSchedule event={displayEvent} now={currentTime} />
+                  </section>
+                </div>
+                <aside className="self-start rounded-2xl border border-stone-200 p-5 sm:p-6 lg:sticky lg:top-6" aria-label="Event registration">
                   <h2 className="text-xl font-bold text-gray-900">
-                    Join This Event
+                    Registration
                   </h2>
 
                   {displayEvent.cancelled_at ? (
@@ -415,7 +417,7 @@ function EventDetails() {
                   ) : registered ? (
                     <div className="mt-4">
                       <p className="rounded-lg border border-green-200 bg-green-50 p-4 font-medium text-green-800">
-                        ✓ You're registered for this event!
+                        You’re registered for this event.
                       </p>
                       {availability.cancellationOpen ? <button type="button" onClick={handleCancelRegistration}
                         disabled={cancelling || registering} className="mt-4 rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60">
@@ -425,7 +427,7 @@ function EventDetails() {
                   ) : !availability.registrationOpen ? (
                     <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5" role="status">
                       <p className="font-semibold text-gray-900">
-                        🔒 Registration Closed
+                        Registration closed
                       </p>
                       <p className="mt-2 text-sm text-gray-600">
                         The registration deadline or event start has been reached. New registrations are no longer accepted.
@@ -441,7 +443,7 @@ function EventDetails() {
 
                       <Link
                         to="/login"
-                        className="mt-4 inline-block rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                        className="primary-action mt-4 w-full"
                       >
                         Log In to Register
                       </Link>
@@ -451,7 +453,7 @@ function EventDetails() {
                       type="button"
                       onClick={handleRegister}
                       disabled={registering || cancelling || !registrationState}
-                      className="mt-4 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="primary-action mt-4 w-full"
                     >
                       {registering ? "Registering..." : "Register for Event"}
                     </button>
@@ -479,7 +481,7 @@ function EventDetails() {
                       )}
                     </p>
                   )}
-                </div>
+                </aside>
               </div>
             </article>
           )}

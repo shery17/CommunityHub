@@ -28,7 +28,7 @@ export default function EventSchedule({ event, now, showDeadline = true }) {
         <p><strong>Address:</strong> {[event.address, event.city, event.postcode, event.country].filter(Boolean).join(", ")}</p>}
       <p><strong>Attendees:</strong> {event.capacity == null ? `${count} ${count === 1 ? "person attending" : "people attending"}` : `${count} / ${event.capacity} spots filled`}</p>
       <div className="flex flex-wrap gap-2" aria-label="Event status">
-        {availability.lifecycle && !event.cancelled_at && <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-800">
+        {availability.lifecycle && !event.cancelled_at && <span className="rounded-full bg-brand-50 px-3 py-1 font-semibold text-brand-800">
           {{ upcoming: "Upcoming", ongoing: "Ongoing", past: "Past" }[availability.lifecycle]}
         </span>}
         <span className={`rounded-full px-3 py-1 font-semibold ${registrationLabel === "Registration open" ? "bg-green-50 text-green-800" : "bg-gray-100 text-gray-700"}`}>

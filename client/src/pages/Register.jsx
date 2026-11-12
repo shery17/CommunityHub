@@ -87,21 +87,18 @@ function Register() {
     <>
       <Header />
 
-      <main className="bg-gray-50 py-16">
-        <div className="mx-auto max-w-md px-6">
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-              Create an Account
+      <main className="bg-white px-5 py-10 sm:py-16">
+        <div className="mx-auto max-w-sm">
+          <div className="mb-7">
+            <h1 className="text-3xl font-semibold tracking-tight text-stone-950">
+              Create an account
             </h1>
 
-            <p className="mt-3 text-gray-600">
-              Join your local community on CommunityHub.
-            </p>
           </div>
 
           <form
             onSubmit={handleSubmit}
-            className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
+            className="border-t border-stone-200 pt-6"
           >
             <div className="space-y-5">
               <div className="grid gap-5 sm:grid-cols-2">
@@ -113,7 +110,7 @@ function Register() {
                     <label htmlFor={field} className="block text-sm font-semibold text-gray-900">{label}</label>
                     <input id={field} name={field} type="text" value={formData[field]} onChange={handleChange}
                       autoComplete={autoComplete} maxLength={100} required
-                      className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                      className="form-control" />
                   </div>
                 ))}
               </div>
@@ -137,7 +134,7 @@ function Register() {
                   autoComplete="email"
                   maxLength={255}
                   required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="form-control"
                 />
               </div>
 
@@ -149,7 +146,7 @@ function Register() {
                   <label htmlFor={field} className="block text-sm font-semibold text-gray-900">{label}</label>
                   <input id={field} name={field} type="password" value={formData[field]} onChange={handleChange}
                     autoComplete="new-password" minLength={8} maxLength={72} required
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                    className="form-control" />
                 </div>
               ))}
             </div>
@@ -163,7 +160,7 @@ function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-8 w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="primary-action mt-7 w-full"
             >
               {loading ? "Creating Account..." : "Create Account"}
             </button>
@@ -172,7 +169,7 @@ function Register() {
               Already have an account?{" "}
               <Link
                 to="/login"
-                className="font-semibold text-blue-600 hover:text-blue-700"
+                className="font-semibold text-brand-600 hover:text-brand-700"
               >
                 Log in
               </Link>

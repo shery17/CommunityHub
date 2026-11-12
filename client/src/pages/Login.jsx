@@ -69,16 +69,13 @@ function Login() {
     <>
       <Header />
 
-      <main className="bg-gray-50 py-16">
-        <div className="mx-auto max-w-md px-6">
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-              Welcome Back
+      <main className="bg-white px-5 py-10 sm:py-16">
+        <div className="mx-auto max-w-sm">
+          <div className="mb-7">
+            <h1 className="text-3xl font-semibold tracking-tight text-stone-950">
+              Log in
             </h1>
 
-            <p className="mt-3 text-gray-600">
-              Log in to your CommunityHub account.
-            </p>
           </div>
 
           {state?.accountCreated && <p role="status" className="mb-4 text-center text-sm text-green-800">
@@ -87,7 +84,7 @@ function Login() {
 
           <form
             onSubmit={handleSubmit}
-            className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
+            className="border-t border-stone-200 pt-6"
           >
             <div className="space-y-5">
               {/* Email */}
@@ -108,7 +105,7 @@ function Login() {
                   placeholder="you@example.com"
                   autoComplete="email"
                   required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="form-control"
                 />
               </div>
 
@@ -130,7 +127,7 @@ function Login() {
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="form-control"
                 />
               </div>
             </div>
@@ -144,7 +141,7 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-8 w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="primary-action mt-7 w-full"
             >
               {loading ? "Logging In..." : "Log In"}
             </button>
@@ -153,14 +150,14 @@ function Login() {
               Don't have an account?{" "}
               <Link
                 to="/register" state={state}
-                className="font-semibold text-blue-600 hover:text-blue-700"
+                className="font-semibold text-brand-600 hover:text-brand-700"
               >
                 Create an account
               </Link>
             </p>
           </form>
           {needsVerification && <div className="mt-4 text-center">
-            <Link to="/verify-email" state={{ email: formData.email, returnTo: state?.returnTo }} className="text-sm font-semibold text-blue-700">
+            <Link to="/verify-email" state={{ email: formData.email, returnTo: state?.returnTo }} className="text-sm font-semibold text-brand-700">
               Resend verification email
             </Link>
           </div>}

@@ -37,14 +37,14 @@ export default function EventLocationFields({ form, onChange, enabled, disabled,
         <p role="status" className="text-sm text-gray-700">Selected map location: {form.place_label || `${form.latitude}, ${form.longitude}`}</p>
         <p className="text-xs text-gray-500">Choose a venue result for accurate distance estimates; a city result uses its centre.</p>
         <button type="button" onClick={()=>onSelectPlace({latitude:null,longitude:null,place_label:null})}
-          className="text-sm text-blue-700 underline">Remove map location</button>
+          className="text-sm text-brand-700 underline">Remove map location</button>
       </> : <p role="status" className="text-sm text-gray-600">No map location selected. This event will not appear in radius searches.</p>}
     </div>}
     {selectedPlace && <div className="space-y-2 text-sm">
       <p className="font-semibold text-gray-900">Venue or address</p>
       <p role="status">{form.place_label || form.location}</p>
       <button type="button" onClick={() => onSelectPlace({ latitude: null, longitude: null, place_label: null })}
-        className="text-blue-700 underline">Enter address manually</button>
+        className="text-brand-700 underline">Enter address manually</button>
     </div>}
   </fieldset>;
 }

@@ -68,34 +68,34 @@ export default function VerifyEmail() {
 
   return <>
     <Header />
-    <main className="bg-gray-50 px-6 py-16">
-      <div className="mx-auto max-w-md space-y-5 rounded-xl border border-gray-200 bg-white p-6">
-        <h1 className="text-3xl font-bold">{verified ? "Email verified" : token ? "Verify your email" : "Check your inbox"}</h1>
+    <main className="bg-white px-5 py-10 sm:py-16">
+      <div className="mx-auto max-w-sm space-y-5">
+        <h1 className="text-3xl font-semibold tracking-tight">{verified ? "Email verified" : token ? "Verify your email" : "Check your inbox"}</h1>
         {!verified && token && <form className="space-y-4" onSubmit={event => submit(event, true)}>
           <p>{setup ? "Set a password to finish creating your account." : "Confirm your account password to verify your email."}</p>
           <label className="block">Password
             <input type="password" required autoComplete={setup ? "new-password" : "current-password"}
-              className="mt-1 block w-full rounded border px-3 py-2" value={password} onChange={event => setPassword(event.target.value)} />
+              className="form-control" value={password} onChange={event => setPassword(event.target.value)} />
           </label>
           {setup && (
             <label className="block">Confirm password
               <input type="password" required autoComplete="new-password"
-                className="mt-1 block w-full rounded border px-3 py-2" value={confirmation} onChange={event => setConfirmation(event.target.value)} />
+                className="form-control" value={confirmation} onChange={event => setConfirmation(event.target.value)} />
             </label>
           )}
-          <button type="submit" disabled={busy} className="rounded bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-60">Verify email</button>
+          <button type="submit" disabled={busy} className="primary-action">Verify email</button>
         </form>}
         {!verified && <form className="space-y-3" onSubmit={event => submit(event, false)}>
           {!token && <p>Open the link in your verification email to continue.</p>}
           <label className="block">Need a new verification link?
             <input type="email" required autoComplete="email" maxLength={255}
-              className="mt-1 block w-full rounded border px-3 py-2" value={email} onChange={event => setEmail(event.target.value)} />
+              className="form-control" value={email} onChange={event => setEmail(event.target.value)} />
           </label>
-          <button type="submit" disabled={busy} className="rounded border px-4 py-2 font-semibold disabled:opacity-60">Resend verification email</button>
+          <button type="submit" disabled={busy} className="secondary-action disabled:opacity-60">Resend verification email</button>
         </form>}
         {error && <p role="alert" className="text-red-600">{error}</p>}
         {message && <p role="status">{message}</p>}
-        <Link to="/login" state={state} className="inline-block font-semibold text-blue-700">Sign in</Link>
+        <Link to="/login" state={state} className="inline-block font-semibold text-brand-700">Sign in</Link>
       </div>
     </main>
     <Footer />

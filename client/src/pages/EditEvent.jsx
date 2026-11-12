@@ -151,17 +151,17 @@ function EditEvent() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-gray-50 px-6 py-12 sm:py-16">
-        <div className="mx-auto max-w-3xl">
+      <main className="bg-white px-5 py-10 sm:py-14">
+        <div className="mx-auto max-w-2xl">
           <Link
             to={`/events/${id}`}
-            className="font-semibold text-blue-600 hover:text-blue-800"
+            className="font-semibold text-brand-600 hover:text-brand-800"
           >
             ← Back to Event
           </Link>
 
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-            <h1 className="text-3xl font-bold text-gray-900">
+          <div className="mt-6 border-t border-stone-200 pt-6 sm:p-8">
+            <h1 className="text-3xl font-semibold tracking-tight text-stone-950">
               Edit Event
             </h1>
 
@@ -201,7 +201,7 @@ function EditEvent() {
                     maxLength={200}
                     value={formData.title}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
                   />
                 </div>
 
@@ -219,7 +219,7 @@ function EditEvent() {
                     rows={5}
                     value={formData.description}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
                   />
                 </div>
 
@@ -239,7 +239,7 @@ function EditEvent() {
                   <label htmlFor="capacity" className="block text-sm font-semibold">Attendee limit (optional)</label>
                   <input id="capacity" name="capacity" type="number" min={1} max={2147483647} step={1}
                     value={formData.capacity ?? ""} onChange={handleChange}
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3" />
+                    className="form-control" />
                   <p className="mt-1 text-sm text-gray-600">Leave blank for unlimited attendance.</p>
                 </div>} />
 
@@ -253,14 +253,14 @@ function EditEvent() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="primary-action"
                   >
                     {saving ? "Saving Changes..." : "Save Changes"}
                   </button>
 
                   <Link
                     to={`/events/${id}`}
-                    className="rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-700 hover:bg-white"
                   >
                     Cancel
                   </Link>

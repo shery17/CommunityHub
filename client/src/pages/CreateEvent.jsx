@@ -109,10 +109,10 @@ function CreateEvent() {
     <>
       <Header />
 
-      <main className="bg-gray-50 py-16">
-        <div className="mx-auto max-w-3xl px-6">
+      <main className="bg-white py-10 sm:py-14">
+        <div className="mx-auto max-w-2xl px-6">
           <div className="mb-10">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
               Create an Event
             </h1>
 
@@ -127,7 +127,7 @@ function CreateEvent() {
             </p>
           ) : <form
             onSubmit={handleSubmit}
-            className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
+            className="border-t border-stone-200 pt-6"
           >
             <div className="space-y-6">
               {/* Event Title */}
@@ -148,7 +148,7 @@ function CreateEvent() {
                   placeholder="e.g. Community Clean-Up"
                   maxLength={200}
                   required
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="form-control"
                 />
               </div>
 
@@ -169,7 +169,7 @@ function CreateEvent() {
                   placeholder="Tell people what the event is about..."
                   rows="5"
                   required
-                  className="mt-2 w-full resize-none rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="form-control"
                 />
               </div>
 
@@ -188,7 +188,7 @@ function CreateEvent() {
                 <label htmlFor="capacity" className="block text-sm font-semibold">Attendee limit (optional)</label>
                 <input id="capacity" name="capacity" type="number" min={1} max={2147483647} step={1}
                   value={formData.capacity ?? ""} onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3" />
+                  className="form-control" />
                 <p className="mt-1 text-sm text-gray-600">Leave blank for unlimited attendance.</p>
               </div>} />
             </div>
@@ -205,7 +205,7 @@ function CreateEvent() {
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="primary-action"
               >
                 {loading ? "Creating Event..." : "Create Event"}
               </button>

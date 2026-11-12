@@ -211,7 +211,7 @@ function Profile() {
       <>
         <Header />
 
-        <main className="min-h-screen bg-gray-50 px-6 py-16">
+        <main className="bg-white px-6 py-16">
           <div className="mx-auto max-w-3xl rounded-xl border border-gray-200 bg-white p-8 text-center">
             <h1 className="text-3xl font-bold text-gray-900">
               Your Profile
@@ -223,7 +223,7 @@ function Profile() {
 
             <Link
               to="/login"
-              className="mt-6 inline-block rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+              className="mt-6 inline-block rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-700"
             >
               Log In
             </Link>
@@ -239,10 +239,10 @@ function Profile() {
     <>
       <Header />
 
-      <main className="min-h-screen bg-gray-50 py-12 sm:py-16">
+      <main className="bg-white py-12 sm:py-16">
         <div className="mx-auto max-w-5xl px-6">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-stone-950">
               Your Profile
             </h1>
 
@@ -252,7 +252,7 @@ function Profile() {
           </div>
 
           {/* Account Details */}
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+          <section className="border-y border-stone-200 py-6">
             <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
@@ -284,7 +284,7 @@ function Profile() {
                 My Registered Events
               </h2>
 
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
+              <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700">
                 {events.length} {events.length === 1 ? "event" : "events"}
               </span>
             </div>
@@ -325,7 +325,7 @@ function Profile() {
 
                 <Link
                   to="/events"
-                  className="mt-5 inline-block rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+                  className="mt-5 inline-block rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-700"
                 >
                   Explore Events
                 </Link>
@@ -333,18 +333,18 @@ function Profile() {
             )}
 
             {!loading && !error && events.length > 0 && (
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-x-8 gap-y-3 md:grid-cols-2">
                 {events.map((event) => (
                   <article
                     key={event.id}
-                    className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+                    className="border-t border-stone-200 py-4"
                   >
                     <ProfileEventSummary event={event} now={currentTime} />
 
                     <div className="mt-5 flex flex-wrap items-center gap-4">
                       <Link
                         to={`/events/${event.id}`}
-                        className="font-semibold text-blue-600 hover:text-blue-800"
+                        className="font-semibold text-brand-600 hover:text-brand-800"
                       >
                         View Event →
                       </Link>
@@ -373,7 +373,7 @@ function Profile() {
                 My Created Events
               </h2>
 
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
+              <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-700">
                 {createdEvents.length}{" "}
                 {createdEvents.length === 1 ? "event" : "events"}
               </span>
@@ -410,25 +410,25 @@ function Profile() {
             {!createdLoading &&
               !createdError &&
               createdEvents.length > 0 && (
-                <div className="grid gap-5 md:grid-cols-2">
+                <div className="grid gap-x-8 gap-y-3 md:grid-cols-2">
                   {createdEvents.map((event) => (
                     <article
                       key={event.id}
-                      className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+                      className="border-t border-stone-200 py-4"
                     >
                       <ProfileEventSummary event={event} now={currentTime} />
 
                       <div className="mt-5 flex flex-wrap items-center gap-4">
                         <Link
                           to={`/events/${event.id}`}
-                          className="font-semibold text-blue-600 hover:text-blue-800"
+                          className="font-semibold text-brand-600 hover:text-brand-800"
                         >
                           View Event →
                         </Link>
 
                         <Link
                           to={`/events/${event.id}/edit`}
-                          className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+                          className="rounded-lg border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-600 hover:bg-brand-50"
                         >
                           Edit Event
                         </Link>

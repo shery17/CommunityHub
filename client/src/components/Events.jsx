@@ -43,7 +43,7 @@ function Events() {
         {!loading && !error && <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {upcoming.map(event => <EventCard key={event.id} event={event} now={now} />)}
         </div>}
-        <Link to="/events" className="mt-8 inline-block font-semibold text-blue-600 hover:text-blue-800">Browse all events →</Link>
+        <Link to="/events" className="mt-8 inline-block font-semibold text-brand-600 hover:text-brand-800">Browse all events →</Link>
       </div>
     </section>
   );

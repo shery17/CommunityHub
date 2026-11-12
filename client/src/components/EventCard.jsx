@@ -8,24 +8,20 @@ export default function EventCard({ event, now }) {
   const distance = event.distance_miles == null ? null : Number(event.distance_miles);
 
   return (
-    <article className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      {event.has_cover_photo && <img src={coverPhotoUrl(event.id)} alt="" loading="lazy" decoding="async" className="h-36 w-full object-cover" />}
-      <div className="flex flex-1 flex-col p-5">
-        <h2 className="break-words text-xl font-bold text-gray-900">{event.title}</h2>
-        <div className="mt-2 space-y-1 text-sm text-gray-700">
-          <p><time dateTime={event.starts_at}>{eventCardTiming(event)}</time></p>
-          <p className="break-words">{event.location}{Number.isFinite(distance) && ` · ${distance.toFixed(1)} miles away`}</p>
-          <p className="font-medium">{formatEventPrice(event)}</p>
+    <article className="min-w-0">
+      <Link to={`/events/${event.id}`} className="group block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-700">
+        {event.has_cover_photo && <img src={coverPhotoUrl(event.id)} alt="" loading="lazy" decoding="async"
+          className="aspect-[4/3] w-full rounded-xl bg-slate-100 object-cover" />}
+        <div className={event.has_cover_photo ? "pt-2.5" : "border-t border-slate-200 pt-3"}>
+          <h2 className="break-words text-sm leading-snug font-semibold text-slate-950 group-hover:underline sm:text-base">{event.title}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-600 sm:text-sm">{eventCardTiming(event)}</p>
+          <p className="break-words text-xs leading-relaxed text-slate-600 sm:text-sm">
+            {event.location}{Number.isFinite(distance) && ` · ${distance.toFixed(1)} miles away`}
+          </p>
+          <p className="mt-1 text-xs font-semibold text-slate-900 sm:text-sm">{formatEventPrice(event)}</p>
+          {status !== "Registration open" && <p className="mt-1.5 text-xs font-medium text-slate-600">{status}</p>}
         </div>
-        {status !== "Registration open" && <p className="mt-3 self-start rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-800">{status}</p>}
-        {event.description?.trim() && <p className="mt-3 line-clamp-2 break-words text-sm leading-6 text-gray-600">{event.description}</p>}
-        <div className="mt-auto pt-4">
-          <Link to={`/events/${event.id}`} aria-label={`View event: ${event.title}`}
-            className="text-sm font-semibold text-blue-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2">
-            View event
-          </Link>
-        </div>
-      </div>
+      </Link>
     </article>
   );
 }

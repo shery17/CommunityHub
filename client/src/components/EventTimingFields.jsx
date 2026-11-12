@@ -1,6 +1,6 @@
 import { localTimeChoices } from "../eventFormTiming";
 
-const inputClass = "mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-600";
+const inputClass = "form-control";
 const zones = [...new Set(["Europe/London", "UTC", ...(Intl.supportedValuesOf?.("timeZone") ?? ["America/New_York", "Asia/Tokyo", "Australia/Sydney"])])];
 
 // Keep saved sub-minute times valid when editing older events.
